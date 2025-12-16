@@ -77,19 +77,11 @@ class FileNavigator:
         return [item for item in all_items if item[0].lower().startswith(term)]
 
     def open_in_vim(self, filepath: str):
-        """Open vim in the current directory, even for new files."""
         curses.endwin()
         try:
-            # Change to current_path before launching vim
-            os.chdir(self.current_path)
-            subprocess.call(["vim", filepath])
-            # Optionally change back (not strictly needed, but clean)
-            # os.chdir(os.path.dirname(os.path.realpath(__file__)))  # or original cwd
+            subprocess.call(["vim", "-c", f"cd {self.current_path}", filepath])
         except FileNotFoundError:
             pass
-        finally:
-            # Ensure we return to the correct dir for next operations
-            os.chdir(self.current_path)
 
     def open_terminal(self):
         try:
@@ -101,7 +93,7 @@ class FileNavigator:
         except FileNotFoundError:
             curses.flash()
 
-    ALLOWED_COMMANDS = {"mkdir", "mv", "cp", "rm", "vim", "v"}
+    ALLOWED_COMMANDS = {"mkdir", "mv", "cp", "rm", "vim", "v", "cd", "c", "r"}
 
     def is_command_allowed(self, cmd_line: str) -> bool:
         if not cmd_line.strip():
@@ -138,18 +130,33 @@ class FileNavigator:
             curses.flash()
             return
 
-        if command.lstrip().startswith("v "):
-            command = "vim " + " ".join(command.split()[1:])
-
         stripped = command.strip()
 
-        if stripped.startswith("vim") or stripped == "v":
-            parts = stripped.split()
-            target = self.current_path if len(parts) == 1 else " ".join(parts[1:])
+        # Handle cd
+        if stripped.startswith("cd "):
+            target = stripped[3:].strip()
+            if not target or target == "~":
+                new_path = os.path.expanduser("~")
+            elif target.startswith("/"):
+                new_path = target
+            else:
+                new_path = os.path.join(self.current_path, os.path.expanduser(target))
+            new_path = os.path.realpath(new_path)
+            if os.path.isdir(new_path):
+                self.current_path = new_path
+            else:
+                curses.flash()  # Invalid path
+            return
+
+        # Handle vim/v
+        if stripped.startswith("vim ") or stripped.startswith("v "):
+            cmd = "vim" if stripped.startswith("vim") else "vim"
+            target = stripped.split(maxsplit=1)[1] if " " in stripped else self.current_path
             full_path = os.path.join(self.current_path, os.path.expanduser(target))
             self.open_in_vim(full_path if os.path.exists(full_path) or target.startswith(('+', '-')) else target)
             return
 
+        # All other commands
         home = os.path.expanduser("~")
         bashrc = os.path.join(home, ".bashrc")
         full_cmd = f"source {bashrc} >/dev/null 2>&1 && {command} >/dev/null 2>&1"
@@ -377,6 +384,9 @@ class FileNavigator:
 
                 elif key == ord('t'):
                     self.open_terminal()
+
+                elif key == 12:  # Ctrl+L
+                    self.cleanup_yank()
 
                 elif key == ord('y') and self.input_buffer == "y":
                     if total_items > 0:
