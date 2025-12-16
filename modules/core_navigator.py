@@ -56,13 +56,29 @@ Other
 
     def open_terminal(self):
         try:
-            subprocess.Popen(
-                ["alacritty", "--working-directory", self.dir_manager.current_path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+            # Fully detach the new terminal: nohup + setsid + & 
+            subprocess.Popen([
+                "setsid", "alacritty",
+                "--working-directory", self.dir_manager.current_path
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True  # Extra safety
             )
         except FileNotFoundError:
-            curses.flash()
+            # Fallback: try x-terminal-emulator (common on Linux)
+            try:
+                subprocess.Popen([
+                    "setsid", "x-terminal-emulator",
+                    "-e", f"cd {self.dir_manager.current_path} && exec $SHELL"
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL
+                )
+            except FileNotFoundError:
+                curses.flash()
         self.need_redraw = True
 
     def run(self, stdscr):
