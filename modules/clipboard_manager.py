@@ -6,7 +6,7 @@ import uuid
 
 class ClipboardManager:
     def __init__(self):
-        self.temp_yank_dir = os.path.join(tempfile.gettempdir(), "harpoon_yank")
+        self.temp_yank_dir = os.path.join(tempfile.gettempdir(), "vios_yank")
         os.makedirs(self.temp_yank_dir, exist_ok=True)
         self.yanked_temp_path = None
         self.yanked_original_name = None

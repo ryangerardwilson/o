@@ -2,25 +2,75 @@
 import curses
 import os
 
-from .directory_manager import is_text_file
-
 
 class InputHandler:
     def __init__(self, navigator):
         self.nav = navigator
-        self.pending_operator = None  # 'd' or 'y'
+        self.pending_operator = None
+        self.in_filter_mode = False  # True only while actively typing the filter
+
+    def _normalize_pattern(self, pattern: str) -> str:
+        if not pattern:
+            return ""
+        if any(c in pattern for c in "*?[]"):
+            return pattern
+        return pattern + "*"
 
     def handle_key(self, stdscr, key):
-        # If help is shown, only ? (toggle) or q/Esc (quit app) are allowed
         if self.nav.show_help:
             if key == ord('?'):
                 self.nav.show_help = False
                 return False
-            if key in (ord('q'), 27):  # q or Esc → quit entire app
+            if key in (ord('q'), 27):
                 return True
-            return False  # ignore all other keys while help is open
+            return False
 
-        # Normal browser mode below
+        # === FILTER MODE ===
+        if key == ord('/'):
+            if self.in_filter_mode:
+                # Second / exits typing mode and clears filter
+                self.in_filter_mode = False
+                self.nav.dir_manager.filter_pattern = ""
+            else:
+                # First / enters typing mode
+                self.in_filter_mode = True
+                self.nav.dir_manager.filter_pattern = ""
+            return False
+
+        # Ctrl+R: clear filter and reload full list
+        if key == 18:  # Ctrl+R
+            self.in_filter_mode = False
+            self.nav.dir_manager.filter_pattern = ""
+            return False
+
+        # While actively typing the filter
+        if self.in_filter_mode:
+            if key in (10, 13, curses.KEY_ENTER):  # Enter: persist filter, exit typing mode
+                self.in_filter_mode = False
+                return False
+
+            if key == 27:  # Esc: cancel and clear filter
+                self.in_filter_mode = False
+                self.nav.dir_manager.filter_pattern = ""
+                return False
+
+            if 32 <= key <= 126:  # Printable characters
+                char = chr(key)
+                self.nav.dir_manager.filter_pattern += char
+                return False
+
+            if key in (curses.KEY_BACKSPACE, 127, 8):
+                if self.nav.dir_manager.filter_pattern:
+                    self.nav.dir_manager.filter_pattern = self.nav.dir_manager.filter_pattern[:-1]
+                return False
+
+            # Any navigation key exits typing mode but keeps current filter applied
+            if key in (ord('h'), ord('j'), ord('k'), ord('l'),
+                       curses.KEY_UP, curses.KEY_DOWN, curses.KEY_LEFT, curses.KEY_RIGHT):
+                self.in_filter_mode = False
+                # Continue to normal navigation below
+
+        # Normal browser mode
         items = self.nav.dir_manager.get_filtered_items()
         total = len(items)
         self._clamp_selection(total)
@@ -32,7 +82,7 @@ class InputHandler:
             selected_name, selected_is_dir = items[self.nav.browser_selected]
             selected_path = os.path.join(self.nav.dir_manager.current_path, selected_name)
 
-        # Confirm pending operator
+        # Pending operators
         if self.pending_operator == 'd' and key == ord('d') and total > 0:
             try:
                 self.nav.clipboard.yank(selected_path, selected_name, selected_is_dir, cut=True)
@@ -49,7 +99,6 @@ class InputHandler:
             self.pending_operator = None
             return False
 
-        # Start pending operator
         if key == ord('d'):
             self.pending_operator = 'd'
             return False
@@ -57,7 +106,6 @@ class InputHandler:
             self.pending_operator = 'y'
             return False
 
-        # Immediate cut
         if key in (curses.KEY_BACKSPACE, curses.KEY_DC, 127, 8) and total > 0:
             try:
                 self.nav.clipboard.yank(selected_path, selected_name, selected_is_dir, cut=True)
@@ -65,7 +113,6 @@ class InputHandler:
                 curses.flash()
             return False
 
-        # Paste
         if key == ord('p') and self.nav.clipboard.yanked_temp_path:
             new_name = self._get_unique_name(
                 self.nav.dir_manager.current_path,
@@ -77,26 +124,22 @@ class InputHandler:
                 curses.flash()
             return False
 
-        # Open terminal
         if key == ord('t'):
             self.nav.open_terminal()
             return False
 
-        # Clear clipboard
         if key == 12:  # Ctrl+L
             self.nav.clipboard.cleanup()
             return False
 
-        # Toggle help
         if key == ord('?'):
             self.nav.show_help = True
             return False
 
-        # Quit (only when not in help screen)
         if key in (ord('q'), 27):
             return True
 
-        # Navigation
+        # Navigation — reset filter on directory change
         if key in (curses.KEY_UP, ord('k')) and total > 0:
             self.nav.browser_selected = (self.nav.browser_selected - 1) % total
         elif key in (curses.KEY_DOWN, ord('j')) and total > 0:
@@ -106,14 +149,16 @@ class InputHandler:
             if parent != self.nav.dir_manager.current_path:
                 self.nav.dir_manager.current_path = parent
                 self.nav.browser_selected = 0
+                self.in_filter_mode = False
+                self.nav.dir_manager.filter_pattern = ""  # Reset on going up
         elif key in (curses.KEY_RIGHT, ord('l'), 10, 13) and total > 0:
             if selected_is_dir:
                 self.nav.dir_manager.current_path = selected_path
                 self.nav.browser_selected = 0
-            elif is_text_file(selected_path):
-                self.nav._open_in_vim(selected_path)
+                self.in_filter_mode = False
+                self.nav.dir_manager.filter_pattern = ""  # Reset on drilling down
             else:
-                curses.flash()
+                self.nav.open_file(selected_path)
 
         return False
 

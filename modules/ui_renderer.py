@@ -70,10 +70,10 @@ class UIRenderer:
                     pass
 
             stdscr.refresh()
-            return  # Nothing else drawn when help is active
+            return  # Nothing else drawn during help
 
         # === NORMAL BROWSER VIEW ===
-        # Current path at top
+        # Current path centered at top
         display_path = pretty_path(self.nav.dir_manager.current_path)
         try:
             stdscr.addstr(0, max(0, (max_x - len(display_path)) // 2),
@@ -83,13 +83,16 @@ class UIRenderer:
 
         # File list
         list_start_y = 2
-        available_height = max_y - list_start_y - 1
+        available_height = max_y - list_start_y - 1  # Reserve status bar
 
         items = self.nav.dir_manager.get_filtered_items()
         total = len(items)
 
         if total == 0:
-            msg = "(empty directory)"
+            if self.nav.dir_manager.filter_pattern:
+                msg = "(no matches)"
+            else:
+                msg = "(empty directory)"
             try:
                 stdscr.addstr(list_start_y + available_height // 2,
                               max(0, (max_x - len(msg)) // 2), msg, curses.color_pair(3))
@@ -108,11 +111,13 @@ class UIRenderer:
                 except curses.error:
                     pass
 
-        # Status bar
+        # Status bar – shows /pattern when active or persisted
         yank_text = (f"  CUT: {self.nav.clipboard.yanked_original_name}"
                      f"{'/' if self.nav.clipboard.yanked_is_dir else ''}"
                      if self.nav.clipboard.yanked_temp_path else "")
-        status = f"[HJKL]  ? help{yank_text}"
+        filter_text = f"  /{self.nav.dir_manager.filter_pattern}" if self.nav.dir_manager.filter_pattern else ""
+        help_hint = "  ? help" if not self.nav.show_help else ""
+        status = f"[HJKL]{help_hint}{filter_text}{yank_text}"
         try:
             stdscr.addstr(max_y - 1, 0, status[:max_x-1], curses.color_pair(5) | curses.A_BOLD)
         except curses.error:
