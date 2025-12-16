@@ -1,0 +1,70 @@
+import os
+import glob
+
+
+def is_text_file(path: str) -> bool:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            f.read(1024)
+        return True
+    except Exception:
+        return False
+
+
+def pretty_path(path: str) -> str:
+    home = os.path.expanduser("~")
+    if path.startswith(home):
+        return "~" + path[len(home):] if path != home else "~"
+    return path
+
+
+class DirectoryManager:
+    def __init__(self, start_path: str):
+        self.current_path = os.path.realpath(start_path)
+        self.search_term = ""
+
+    def change_directory(self, new_path: str):
+        new_path = os.path.realpath(os.path.expanduser(new_path))
+        if os.path.isdir(new_path):
+            self.current_path = new_path
+            return True
+        return False
+
+    def get_items(self):
+        """Return list of (name, is_dir) for visible items, sorted."""
+        try:
+            items = os.listdir(self.current_path)
+        except PermissionError:
+            return []
+
+        items_with_info = []
+        for item in items:
+            if item.startswith("."):
+                continue
+            full_path = os.path.join(self.current_path, item)
+            is_dir = os.path.isdir(full_path)
+            items_with_info.append((item, is_dir))
+
+        items_with_info.sort(key=lambda x: (not x[1], x[0].lower()))
+        return items_with_info
+
+    def get_filtered_items(self):
+        all_items = self.get_items()
+        if not self.search_term:
+            return all_items
+        term = self.search_term.lower()
+        return [item for item in all_items if item[0].lower().startswith(term)]
+
+    def get_tab_completions(self, partial: str) -> list[str]:
+        if not partial:
+            return []
+        pattern = os.path.join(self.current_path, partial + "*")
+        matches = glob.glob(pattern)
+        rel_matches = []
+        for m in matches:
+            rel = os.path.basename(m)
+            if os.path.isdir(m):
+                rel += "/"
+            rel_matches.append(rel)
+        rel_matches.sort()
+        return rel_matches
