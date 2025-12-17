@@ -1,12 +1,16 @@
+# ~/Apps/vios/modules/input_handler.py
 import curses
 import os
+import time
 
 
 class InputHandler:
     def __init__(self, navigator):
         self.nav = navigator
         self.pending_operator = None
-        self.in_filter_mode = False  # True only while actively typing the filter
+        self.operator_timestamp = 0.0    # When the first operator key was pressed
+        self.operator_timeout = 1.0      # Seconds allowed for the second key
+        self.in_filter_mode = False
 
     def _normalize_pattern(self, pattern: str) -> str:
         if not pattern:
@@ -14,6 +18,11 @@ class InputHandler:
         if any(c in pattern for c in "*?[]"):
             return pattern
         return pattern + "*"
+
+    def _check_operator_timeout(self):
+        """Cancel pending operator if too much time has passed."""
+        if self.pending_operator and (time.time() - self.operator_timestamp > self.operator_timeout):
+            self.pending_operator = None
 
     def handle_key(self, stdscr, key):
         if self.nav.show_help:
@@ -72,7 +81,10 @@ class InputHandler:
             selected_name, selected_is_dir = items[self.nav.browser_selected]
             selected_path = os.path.join(self.nav.dir_manager.current_path, selected_name)
 
-        # Pending operators (yy, dd)
+        # Check for operator timeout before processing new keys
+        self._check_operator_timeout()
+
+        # Handle completion of dd (cut/delete)
         if self.pending_operator == 'd' and key == ord('d') and total > 0:
             try:
                 self.nav.clipboard.yank(selected_path, selected_name, selected_is_dir, cut=True)
@@ -81,6 +93,7 @@ class InputHandler:
             self.pending_operator = None
             return False
 
+        # Handle completion of yy (yank/copy) – kept for consistency
         if self.pending_operator == 'y' and key == ord('y') and total > 0:
             try:
                 self.nav.clipboard.yank(selected_path, selected_name, selected_is_dir, cut=False)
@@ -89,19 +102,21 @@ class InputHandler:
             self.pending_operator = None
             return False
 
+        # Start pending operator on first d or y
         if key == ord('d'):
             self.pending_operator = 'd'
-            return False
-        if key == ord('y'):
-            self.pending_operator = 'y'
+            self.operator_timestamp = time.time()
             return False
 
-        if key in (curses.KEY_BACKSPACE, curses.KEY_DC, 127, 8) and total > 0:
-            try:
-                self.nav.clipboard.yank(selected_path, selected_name, selected_is_dir, cut=True)
-            except Exception:
-                curses.flash()
+        if key == ord('y'):
+            self.pending_operator = 'y'
+            self.operator_timestamp = time.time()
             return False
+
+        # Any other key cancels a pending single-letter operator
+        # (this ensures only quick dd works)
+        if self.pending_operator in ('d', 'y'):
+            self.pending_operator = None
 
         if key == ord('p') and self.nav.clipboard.yanked_temp_path:
             new_name = self._get_unique_name(
