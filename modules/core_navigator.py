@@ -1,7 +1,7 @@
-# ~/Apps/vios/modules/core_navigator.py
 import curses
 import subprocess
 import os
+import sys
 
 from .directory_manager import DirectoryManager
 from .clipboard_manager import ClipboardManager
@@ -63,11 +63,10 @@ Other
     def open_file(self, filepath: str):
         import mimetypes
 
-        mime_type, _ = mimetypes.guess_type(filepath)
-
         curses.endwin()
 
         try:
+            mime_type, _ = mimetypes.guess_type(filepath)
             if mime_type == 'application/pdf':
                 subprocess.Popen([
                     "zathura", filepath
@@ -174,6 +173,7 @@ Other
             stdscr.getch()
 
     def run(self, stdscr):
+        # Basic curses initialization
         curses.curs_set(0)
         curses.start_color()
         curses.use_default_colors()
@@ -181,7 +181,20 @@ Other
             curses.init_pair(i, [curses.COLOR_CYAN, curses.COLOR_WHITE, curses.COLOR_YELLOW,
                                  curses.COLOR_RED, curses.COLOR_GREEN][i-1], -1)
 
+        # Wire up renderer and optimize stdscr for smoother redraws
         self.renderer.stdscr = stdscr
+
+        # Important: proper key decoding and performance hints
+        try:
+            stdscr.keypad(True)   # enable decoding of special keys
+            stdscr.leaveok(True)  # reduce cursor movement / flicker
+            stdscr.idlok(True)    # allow hardware insert/delete line optimizations
+        except Exception:
+            # Not critical; continue if terminal doesn't support
+            pass
+
+        # Small timeout so repeated-key presses are smoother and we don't busy-loop
+        stdscr.timeout(40)  # milliseconds; tune if desired
 
         while True:
             if self.need_redraw:
@@ -196,3 +209,4 @@ Other
                 break
 
             self.need_redraw = True
+

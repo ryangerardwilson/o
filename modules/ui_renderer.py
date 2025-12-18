@@ -1,4 +1,3 @@
-# ~/Apps/vios/modules/ui_renderer.py
 import curses
 
 from .directory_manager import DirectoryManager
@@ -14,7 +13,15 @@ class UIRenderer:
             return
         stdscr = self.stdscr
         max_y, max_x = stdscr.getmaxyx()
-        stdscr.clear()
+
+        # Use erase() rather than clear() — often faster and avoids leaving cruft
+        try:
+            stdscr.erase()
+        except Exception:
+            try:
+                stdscr.clear()
+            except Exception:
+                pass
 
         # === HELP SCREEN ===
         if self.nav.show_help:
@@ -76,8 +83,18 @@ class UIRenderer:
         except curses.error:
             pass
 
+        # Precompute list area and explicitly clear it to prevent "ghost" chars
         list_start_y = 2
         available_height = max_y - list_start_y - 1
+        if available_height < 0:
+            available_height = 0
+
+        for yy in range(list_start_y, list_start_y + available_height):
+            try:
+                stdscr.move(yy, 0)
+                stdscr.clrtoeol()
+            except curses.error:
+                pass
 
         items = self.nav.dir_manager.get_filtered_items()
         total = len(items)
@@ -123,8 +140,11 @@ class UIRenderer:
                          if global_idx == self.nav.browser_selected else curses.color_pair(2))
                 suffix = '/' if is_dir else ''
                 line = f"{prefix}{name}{suffix}"
+                y = list_start_y + i
                 try:
-                    stdscr.addstr(list_start_y + i, 2, line[:max_x-3], color)
+                    stdscr.move(y, 2)
+                    stdscr.clrtoeol()
+                    stdscr.addstr(y, 2, line[:max_x-3], color)
                 except curses.error:
                     pass
 
@@ -135,9 +155,14 @@ class UIRenderer:
             if self.nav.clipboard.yanked_is_dir:
                 yank_text += "/"
 
+        # Show filter consistently: avoid double-leading-slash when filter_pattern already contains '/'
         filter_text = ""
         if self.nav.dir_manager.filter_pattern:
-            filter_text = f"  /{self.nav.dir_manager.filter_pattern}"
+            fp = self.nav.dir_manager.filter_pattern
+            if fp.startswith("/"):
+                filter_text = f"  {fp}"
+            else:
+                filter_text = f"  /{fp}"
 
         hidden_indicator = self.nav.dir_manager.get_hidden_status_text()
         help_hint = "  ? help" if not self.nav.show_help else ""
@@ -151,8 +176,11 @@ class UIRenderer:
         status = f"[HJKL]{help_hint}{filter_text}{hidden_indicator}{scroll_indicator}{yank_text}"
 
         try:
+            stdscr.move(max_y - 1, 0)
+            stdscr.clrtoeol()
             stdscr.addstr(max_y - 1, 0, status[:max_x-1], curses.color_pair(5) | curses.A_BOLD)
         except curses.error:
             pass
 
         stdscr.refresh()
+
