@@ -3,6 +3,7 @@ import curses
 
 from .directory_manager import DirectoryManager
 
+
 class UIRenderer:
     def __init__(self, navigator):
         self.nav = navigator
@@ -15,7 +16,6 @@ class UIRenderer:
         max_y, max_x = stdscr.getmaxyx()
         stdscr.clear()
 
-        # === FULL-SCREEN CHEATSHEET WHEN SHOWN ===
         if self.nav.show_help:
             lines = [line.rstrip() for line in self.nav.cheatsheet.strip().split('\n')]
             content_height = len(lines)
@@ -28,7 +28,6 @@ class UIRenderer:
             start_y = (max_y - panel_height) // 2
             start_x = (max_x - panel_width) // 2
 
-            # Top border with title
             title = "VIOS CHEATSHEET"
             top_border = "─" + title.center(panel_width - 2, "─") + "─"
             try:
@@ -36,7 +35,6 @@ class UIRenderer:
             except curses.error:
                 pass
 
-            # Content lines
             for i, line in enumerate(lines):
                 y = start_y + 2 + i
                 if y >= max_y - 2:
@@ -49,7 +47,6 @@ class UIRenderer:
                 except curses.error:
                     pass
 
-            # Bottom border with close hint
             quit_hint = "Press ? to close"
             bottom_border = "─".ljust(panel_width - len(quit_hint) - 2, "─") + " " + quit_hint + " "
             try:
@@ -57,7 +54,6 @@ class UIRenderer:
             except curses.error:
                 pass
 
-            # Side borders
             for y in range(start_y + 1, start_y + panel_height - 1):
                 try:
                     stdscr.addstr(y, start_x, "│", curses.color_pair(5))
@@ -69,25 +65,31 @@ class UIRenderer:
                     pass
 
             stdscr.refresh()
-            return  # Nothing else drawn during help
+            return
 
-        # === NORMAL BROWSER VIEW ===
-        # Current path centered at top
-        # display_path = pretty_path(self.nav.dir_manager.current_path)
+        # Current path
         display_path = DirectoryManager.pretty_path(self.nav.dir_manager.current_path)
-
         try:
             stdscr.addstr(0, max(0, (max_x - len(display_path)) // 2),
                           display_path[:max_x], curses.color_pair(2) | curses.A_BOLD)
         except curses.error:
             pass
 
-        # File list
+        # File list with scrolling
         list_start_y = 2
-        available_height = max_y - list_start_y - 1  # Reserve status bar
+        available_height = max_y - list_start_y - 1
 
         items = self.nav.dir_manager.get_filtered_items()
         total = len(items)
+
+        # Update scroll offset to keep selection in view (centered when possible)
+        if total > 0:
+            half = available_height // 2
+            desired = max(0, self.nav.browser_selected - half)
+            max_offset = max(0, total - available_height)
+            self.nav.list_offset = min(desired, max_offset)
+
+        visible_items = items[self.nav.list_offset : self.nav.list_offset + available_height]
 
         if total == 0:
             if self.nav.dir_manager.filter_pattern:
@@ -100,11 +102,11 @@ class UIRenderer:
             except curses.error:
                 pass
         else:
-            for i in range(min(available_height, total)):
-                name, is_dir = items[i]
-                prefix = "> " if i == self.nav.browser_selected else "  "
+            for i, (name, is_dir) in enumerate(visible_items):
+                global_idx = self.nav.list_offset + i
+                prefix = "> " if global_idx == self.nav.browser_selected else "  "
                 color = (curses.color_pair(1) | curses.A_BOLD
-                         if i == self.nav.browser_selected else curses.color_pair(2))
+                         if global_idx == self.nav.browser_selected else curses.color_pair(2))
                 suffix = '/' if is_dir else ''
                 line = f"{prefix}{name}{suffix}"
                 try:
@@ -112,24 +114,28 @@ class UIRenderer:
                 except curses.error:
                     pass
 
-        # === STATUS BAR ===
+        # Status bar
         yank_text = ""
         if self.nav.clipboard.yanked_temp_path:
             yank_text = f"  CUT: {self.nav.clipboard.yanked_original_name}"
             if self.nav.clipboard.yanked_is_dir:
                 yank_text += "/"
 
-        # Filter text: intelligently show the leading / only once
         filter_text = ""
         if self.nav.dir_manager.filter_pattern:
             pattern = self.nav.dir_manager.filter_pattern
-            if pattern.startswith("/"):
-                filter_text = f"  {pattern}"          # Already has leading / (from input handler)
-            else:
-                filter_text = f"  /{pattern}"         # Add leading / for persisted filters without it
+            filter_text = f"  {pattern}" if pattern.startswith("/") else f"  /{pattern}"
 
+        hidden_indicator = self.nav.dir_manager.get_hidden_status_text()
         help_hint = "  ? help" if not self.nav.show_help else ""
-        status = f"[HJKL]{help_hint}{filter_text}{yank_text}"
+
+        scroll_indicator = ""
+        if total > available_height:
+            top = self.nav.list_offset + 1
+            bottom = min(total, self.nav.list_offset + available_height)
+            scroll_indicator = f"  [{top}-{bottom}/{total}]"
+
+        status = f"[HJKL]{help_hint}{filter_text}{hidden_indicator}{scroll_indicator}{yank_text}"
 
         try:
             stdscr.addstr(max_y - 1, 0, status[:max_x-1], curses.color_pair(5) | curses.A_BOLD)

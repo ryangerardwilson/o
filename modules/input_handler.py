@@ -8,14 +8,22 @@ class InputHandler:
     def __init__(self, navigator):
         self.nav = navigator
         self.pending_operator = None
-        self.operator_timestamp = 0.0    # When the first operator key was pressed
-        self.operator_timeout = 1.0      # Seconds allowed for the second key
+        self.operator_timestamp = 0.0
+        self.operator_timeout = 1.0
         self.in_filter_mode = False
 
+        # NEW: for ,j / ,k quick combos
+        self.pending_comma = False
+        self.comma_timestamp = 0.0
+        self.comma_timeout = 0.5  # seconds to complete ,j or ,k
+
     def _check_operator_timeout(self):
-        """Cancel pending operator if too much time has passed."""
         if self.pending_operator and (time.time() - self.operator_timestamp > self.operator_timeout):
             self.pending_operator = None
+
+    def _check_comma_timeout(self):
+        if self.pending_comma and (time.time() - self.comma_timestamp > self.comma_timeout):
+            self.pending_comma = False
 
     def handle_key(self, stdscr, key):
         if self.nav.show_help:
@@ -24,16 +32,18 @@ class InputHandler:
                 return False
             return False
 
+        # Check timeouts first
+        self._check_operator_timeout()
+        self._check_comma_timeout()
+
         # === FILTER MODE ===
         if key == ord('/'):
             if self.in_filter_mode:
-                # Second /: cancel and clear filter
                 self.in_filter_mode = False
                 self.nav.dir_manager.filter_pattern = ""
             else:
-                # Enter filter mode: show '/' immediately for visual feedback
                 self.in_filter_mode = True
-                self.nav.dir_manager.filter_pattern = "/"   # Visual placeholder
+                self.nav.dir_manager.filter_pattern = "/"
             return False
 
         if key == 18:  # Ctrl+R
@@ -44,7 +54,6 @@ class InputHandler:
         if self.in_filter_mode:
             if key in (10, 13, curses.KEY_ENTER):
                 self.in_filter_mode = False
-                # If only the placeholder remains, clear it (no actual filter applied)
                 if self.nav.dir_manager.filter_pattern == "/":
                     self.nav.dir_manager.filter_pattern = ""
                 return False
@@ -58,7 +67,6 @@ class InputHandler:
                 char = chr(key)
                 pattern = self.nav.dir_manager.filter_pattern
                 if pattern == "/":
-                    # First real character: start the actual pattern
                     self.nav.dir_manager.filter_pattern = "/" + char
                 else:
                     self.nav.dir_manager.filter_pattern += char
@@ -67,22 +75,48 @@ class InputHandler:
             if key in (curses.KEY_BACKSPACE, 127, 8):
                 pattern = self.nav.dir_manager.filter_pattern
                 if len(pattern) > 1:
-                    # Remove last character, keep the leading /
                     self.nav.dir_manager.filter_pattern = pattern[:-1]
                 elif pattern == "/":
-                    # Backspace on just '/' exits filter mode
                     self.in_filter_mode = False
                     self.nav.dir_manager.filter_pattern = ""
                 return False
 
-            # Navigation keys exit filter mode
             if key in (ord('h'), ord('j'), ord('k'), ord('l'),
                        curses.KEY_UP, curses.KEY_DOWN, curses.KEY_LEFT, curses.KEY_RIGHT):
                 self.in_filter_mode = False
-                # Keep current filter pattern if any real text was typed
                 if self.nav.dir_manager.filter_pattern == "/":
                     self.nav.dir_manager.filter_pattern = ""
 
+        else:
+            # === COMMA COMMANDS: ,j (bottom) / ,k (top) ===
+            if key == ord(','):
+                self.pending_comma = True
+                self.comma_timestamp = time.time()
+                return False
+
+            if self.pending_comma:
+                if key == ord('j'):
+                    # Go to bottom
+                    items = self.nav.dir_manager.get_filtered_items()
+                    if items:
+                        self.nav.browser_selected = len(items) - 1
+                    self.pending_comma = False
+                    return False
+                elif key == ord('k'):
+                    # Go to top
+                    self.nav.browser_selected = 0
+                    self.pending_comma = False
+                    return False
+                else:
+                    # Any other key cancels pending comma
+                    self.pending_comma = False
+
+            # === DOT TOGGLE (only outside filter mode) ===
+            if key == ord('.'):
+                self.nav.dir_manager.toggle_hidden()
+                return False
+
+        # === NORMAL NAVIGATION AND OPERATORS ===
         items = self.nav.dir_manager.get_filtered_items()
         total = len(items)
         self._clamp_selection(total)
@@ -94,10 +128,7 @@ class InputHandler:
             selected_name, selected_is_dir = items[self.nav.browser_selected]
             selected_path = os.path.join(self.nav.dir_manager.current_path, selected_name)
 
-        # Check for operator timeout before processing new keys
-        self._check_operator_timeout()
-
-        # Handle completion of dd (cut/delete)
+        # dd / yy operators
         if self.pending_operator == 'd' and key == ord('d') and total > 0:
             try:
                 self.nav.clipboard.yank(selected_path, selected_name, selected_is_dir, cut=True)
@@ -106,7 +137,6 @@ class InputHandler:
             self.pending_operator = None
             return False
 
-        # Handle completion of yy (yank/copy)
         if self.pending_operator == 'y' and key == ord('y') and total > 0:
             try:
                 self.nav.clipboard.yank(selected_path, selected_name, selected_is_dir, cut=False)
@@ -115,7 +145,6 @@ class InputHandler:
             self.pending_operator = None
             return False
 
-        # Start pending operator on first d or y
         if key == ord('d'):
             self.pending_operator = 'd'
             self.operator_timestamp = time.time()
@@ -126,7 +155,6 @@ class InputHandler:
             self.operator_timestamp = time.time()
             return False
 
-        # Any other key cancels a pending single-letter operator
         if self.pending_operator in ('d', 'y'):
             self.pending_operator = None
 
@@ -157,7 +185,7 @@ class InputHandler:
             self.nav.show_help = True
             return False
 
-        # Navigation
+        # Normal navigation
         if key in (curses.KEY_UP, ord('k')) and total > 0:
             self.nav.browser_selected = (self.nav.browser_selected - 1) % total
         elif key in (curses.KEY_DOWN, ord('j')) and total > 0:
