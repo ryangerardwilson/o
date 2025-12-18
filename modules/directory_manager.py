@@ -34,6 +34,8 @@ class DirectoryManager:
     # STRICT whitelist: ONLY these items are visible inside ~/.config
     ALLOWED_IN_CONFIG = {
         "alacritty",
+        "rtutor",
+        "worship",
         "crontab",
         "hypr",
         "waybar",
