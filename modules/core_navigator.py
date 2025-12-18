@@ -134,15 +134,18 @@ Other
         except curses.error:
             pass
 
-        curses.echo()
-        curses.curs_set(1)
-
-        input_x = len(prompt)
-        max_input_width = max_x - input_x - 1
-        if max_input_width < 10:
-            max_input_width = 10
-
+        # Make getstr() blocking while reading filename
+        # (run() sets timeout(40) — override temporarily)
         try:
+            stdscr.timeout(-1)         # block indefinitely for user input
+            curses.echo()
+            curses.curs_set(1)
+
+            input_x = len(prompt)
+            max_input_width = max_x - input_x - 1
+            if max_input_width < 10:
+                max_input_width = 10
+
             stdscr.move(prompt_y, input_x)
             filename_bytes = stdscr.getstr(prompt_y, input_x, max_input_width)
             filename = filename_bytes.decode('utf-8', errors='ignore').strip()
@@ -153,8 +156,8 @@ Other
         finally:
             curses.noecho()
             curses.curs_set(0)
-
-        self.need_redraw = True
+            stdscr.timeout(40)         # restore run()'s timeout
+            self.need_redraw = True
 
         if not filename:
             return
@@ -171,6 +174,7 @@ Other
             stdscr.clrtoeol()
             stdscr.refresh()
             stdscr.getch()
+
 
     def run(self, stdscr):
         # Basic curses initialization
