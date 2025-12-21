@@ -19,8 +19,12 @@ class FileNavigator:
 
         self.show_help = False
         self.browser_selected = 0
-        self.list_offset = 0            # Scroll offset for long lists
+        self.list_offset = 0
         self.need_redraw = True
+
+        # Multi-mark support
+        self.marked_items = set()           # set of (name, is_dir)
+        self.mark_source_dir = None         # Directory where marks were made
 
         self.cheatsheet = r"""
 VIOS CHEATSHEET
@@ -42,11 +46,13 @@ Filtering (glob-style)
                   • Press / again to clear filter
   Ctrl+R          Clear filter and show all items
 
-Clipboard
+Clipboard & Multi Operations
   y               Start yank (copy) — yy to confirm
-  d               Start cut/delete — dd to confirm
+  d               Delete marked items OR start cut/delete — dd to confirm
   Backspace/Del   Immediate cut selected item
-  p               Paste (auto-rename on conflict)
+  m               Toggle mark on current item (✓) — auto-advance
+  p               Copy marked items here (overwrite) OR paste single clipboard
+  x               Cut/move marked items here (overwrite)
   Ctrl+L          Clear clipboard
 
 File Opening
@@ -88,12 +94,7 @@ Other
             self.need_redraw = True
 
     def open_terminal(self):
-        import subprocess
-
-        # Get the current directory (absolute path)
         current_dir = self.dir_manager.current_path
-
-        # Copy "cd /path/to/current/dir" to Wayland clipboard
         cd_command = f"cd \"{current_dir}\""
 
         try:
@@ -103,14 +104,10 @@ Other
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
-        except FileNotFoundError:
-            # wl-copy not available (e.g. not on Wayland or not installed) — silently ignore
-            pass
         except Exception:
-            pass  # Any other error — just continue to quit
+            pass
 
-        # Now quit the application cleanly — same as Ctrl+C
-        raise KeyboardInterrupt  # This will be caught in main() and exit gracefully
+        raise KeyboardInterrupt
 
     def create_new_file(self):
         stdscr = self.renderer.stdscr
@@ -135,8 +132,6 @@ Other
         except curses.error:
             pass
 
-        # Make getstr() blocking while reading filename
-        # (run() sets timeout(40) — override temporarily)
         try:
             stdscr.timeout(-1)         # block indefinitely for user input
             curses.echo()
@@ -175,10 +170,12 @@ Other
             stdscr.clrtoeol()
             stdscr.refresh()
             stdscr.getch()
+            return
 
+        # Open the newly created file in Vim
+        self.open_file(filepath)
 
     def run(self, stdscr):
-        # Basic curses initialization
         curses.curs_set(0)
         curses.start_color()
         curses.use_default_colors()
@@ -186,20 +183,16 @@ Other
             curses.init_pair(i, [curses.COLOR_CYAN, curses.COLOR_WHITE, curses.COLOR_YELLOW,
                                  curses.COLOR_RED, curses.COLOR_GREEN][i-1], -1)
 
-        # Wire up renderer and optimize stdscr for smoother redraws
         self.renderer.stdscr = stdscr
 
-        # Important: proper key decoding and performance hints
         try:
-            stdscr.keypad(True)   # enable decoding of special keys
-            stdscr.leaveok(True)  # reduce cursor movement / flicker
-            stdscr.idlok(True)    # allow hardware insert/delete line optimizations
+            stdscr.keypad(True)
+            stdscr.leaveok(True)
+            stdscr.idlok(True)
         except Exception:
-            # Not critical; continue if terminal doesn't support
             pass
 
-        # Small timeout so repeated-key presses are smoother and we don't busy-loop
-        stdscr.timeout(40)  # milliseconds; tune if desired
+        stdscr.timeout(40)
 
         while True:
             if self.need_redraw:
@@ -214,4 +207,3 @@ Other
                 break
 
             self.need_redraw = True
-
