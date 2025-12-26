@@ -1,3 +1,4 @@
+# ~/Apps/vios/modules/core_navigator.py
 import curses
 import subprocess
 import os
@@ -7,6 +8,7 @@ from .directory_manager import DirectoryManager
 from .clipboard_manager import ClipboardManager
 from .ui_renderer import UIRenderer
 from .input_handler import InputHandler
+from .constants import Constants
 
 
 class FileNavigator:
@@ -25,45 +27,7 @@ class FileNavigator:
         # Multi-mark support — now using full absolute paths
         self.marked_items = set()  # set of str (absolute paths)
 
-        self.cheatsheet = r"""
-VIOS CHEATSHEET
-
-Navigation
-  h               Parent directory (resets filter)
-  l / Enter       Enter directory (resets filter) or open file
-  j               Down
-  k               Up
-  ,k              Jump to top
-  ,j              Jump to bottom
-
-Filtering (glob-style)
-  /               Enter filter mode (type pattern)
-                  • "rat" → matches items starting with "rat"
-                  • "*.py" → all Python files
-                  • "*test*" → contains "test"
-                  • Press Enter to apply and persist filter
-                  • Press / again to clear filter
-  Ctrl+R          Clear filter and show all items
-
-Clipboard & Multi Operations
-  y               Start yank (copy) — yy to confirm
-  d               Delete marked items OR start cut/delete — dd to confirm
-  Backspace/Del   Immediate cut selected item
-  m               Toggle mark on current item (✓) — auto-advance
-  p               Copy marked items here (overwrite) OR paste single clipboard
-  x               Cut/move marked items here (overwrite)
-  Ctrl+L          Clear clipboard
-
-File Opening
-  • Text files (.py, .txt, .md, etc.) → Vim
-  • PDF files → Zathura
-
-Other
-  t               Open terminal in current directory
-  .               Toggle show hidden files/dirs
-  ?               Toggle this help
-  Ctrl+C          Quit the app
-"""
+        self.cheatsheet = Constants.CHEATSHEET
 
     def open_file(self, filepath: str):
         import mimetypes
@@ -173,6 +137,67 @@ Other
 
         # Open the newly created file in Vim
         self.open_file(filepath)
+
+    def create_new_directory(self):
+        stdscr = self.renderer.stdscr
+        if not stdscr:
+            return
+
+        max_y, max_x = stdscr.getmaxyx()
+
+        if max_y < 2 or max_x < 20:
+            curses.flash()
+            self.need_redraw = True
+            return
+
+        prompt = "New dir: "
+        prompt_y = max_y - 1
+
+        stdscr.move(prompt_y, 0)
+        stdscr.clrtoeol()
+
+        try:
+            stdscr.addstr(prompt_y, 0, prompt[:max_x-1])
+        except curses.error:
+            pass
+
+        try:
+            stdscr.timeout(-1)         # block indefinitely for user input
+            curses.echo()
+            curses.curs_set(1)
+
+            input_x = len(prompt)
+            max_input_width = max_x - input_x - 1
+            if max_input_width < 10:
+                max_input_width = 10
+
+            stdscr.move(prompt_y, input_x)
+            dirname_bytes = stdscr.getstr(prompt_y, input_x, max_input_width)
+            dirname = dirname_bytes.decode('utf-8', errors='ignore').strip()
+        except KeyboardInterrupt:
+            dirname = ""
+        except Exception:
+            dirname = ""
+        finally:
+            curses.noecho()
+            curses.curs_set(0)
+            stdscr.timeout(40)         # restore run()'s timeout
+            self.need_redraw = True
+
+        if not dirname:
+            return
+
+        unique_name = self.input_handler._get_unique_name(self.dir_manager.current_path, dirname)
+        dirpath = os.path.join(self.dir_manager.current_path, unique_name)
+
+        try:
+            os.makedirs(dirpath)
+        except Exception as e:
+            stdscr.addstr(prompt_y, 0, f"Error creating dir: {str(e)[:max_x-20]}", curses.A_BOLD)
+            stdscr.clrtoeol()
+            stdscr.refresh()
+            stdscr.getch()
+            return
 
     def run(self, stdscr):
         curses.curs_set(0)

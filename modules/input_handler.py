@@ -1,3 +1,4 @@
+# ~/Apps/vios/modules/input_handler.py
 import curses
 import os
 import time
@@ -158,7 +159,7 @@ class InputHandler:
                 curses.flash()
             return False
 
-        # === yy / dd operators ===
+        # === yy / dd / nd operators ===
         if self.pending_operator == 'd' and key == ord('d') and total > 0:
             try:
                 self.nav.clipboard.yank(selected_path, selected_name, selected_is_dir, cut=True)
@@ -175,6 +176,11 @@ class InputHandler:
             self.pending_operator = None
             return False
 
+        if self.pending_operator == 'n' and key == ord('d'):
+            self.nav.create_new_directory()
+            self.pending_operator = None
+            return False
+
         if key == ord('d'):
             self.pending_operator = 'd'
             self.operator_timestamp = time.time()
@@ -182,6 +188,11 @@ class InputHandler:
 
         if key == ord('y'):
             self.pending_operator = 'y'
+            self.operator_timestamp = time.time()
+            return False
+
+        if key == ord('n'):
+            self.pending_operator = 'n'
             self.operator_timestamp = time.time()
             return False
 

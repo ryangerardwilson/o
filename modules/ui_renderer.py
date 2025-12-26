@@ -1,3 +1,4 @@
+# ~/Apps/vios/modules/ui_renderer.py
 import curses
 from .directory_manager import DirectoryManager
 import os
@@ -24,7 +25,12 @@ class UIRenderer:
 
         if self.nav.show_help:
             lines = [line.rstrip() for line in self.nav.cheatsheet.strip().split('\n')]
-            # ... your existing help rendering (unchanged) ...
+            start_y = 0
+            for i, line in enumerate(lines):
+                try:
+                    stdscr.addstr(start_y + i, 0, line[:max_x])
+                except curses.error:
+                    pass
             stdscr.refresh()
             return
 
