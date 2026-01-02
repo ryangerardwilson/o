@@ -31,11 +31,44 @@ class FileNavigator:
 
     def open_file(self, filepath: str):
         import mimetypes
+        import zipfile
+
+        if filepath.endswith('.zip'):
+            stdscr = self.renderer.stdscr
+            max_y, max_x = stdscr.getmaxyx()
+            try:
+                filename = os.path.basename(filepath)
+                base_name = os.path.splitext(filename)[0]
+                extract_dir = os.path.join(self.dir_manager.current_path, base_name)
+                os.makedirs(extract_dir, exist_ok=True)
+
+                status = f"Unzipping {filename} in progress..."
+                stdscr.move(max_y - 1, 0)
+                stdscr.clrtoeol()
+                stdscr.addstr(max_y - 1, 0, status[:max_x-1], curses.A_BOLD)
+                stdscr.refresh()
+
+                with zipfile.ZipFile(filepath) as zf:
+                    members = zf.infolist()
+                    total = len(members)
+                    for i, member in enumerate(members):
+                        zf.extract(member, extract_dir)
+                        if (i + 1) % 10 == 0 or i + 1 == total:
+                            status = f"Unzipping {filename}: {i+1}/{total}"
+                            stdscr.move(max_y - 1, 0)
+                            stdscr.clrtoeol()
+                            stdscr.addstr(max_y - 1, 0, status[:max_x-1], curses.A_BOLD)
+                            stdscr.refresh()
+            except Exception:
+                curses.flash()
+            self.need_redraw = True
+            return
+
+        mime_type, _ = mimetypes.guess_type(filepath)
 
         curses.endwin()
 
         try:
-            mime_type, _ = mimetypes.guess_type(filepath)
             if mime_type == 'application/pdf':
                 subprocess.Popen([
                     "zathura", filepath
