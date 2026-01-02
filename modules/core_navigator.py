@@ -95,13 +95,16 @@ class FileNavigator:
         text_to_copy = f'cd "{current_dir}"'
         
         try:
-            subprocess.run(
+            p = subprocess.Popen(
                 ["wl-copy"],
-                input=text_to_copy.encode(),
-                check=True,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
+                preexec_fn=os.setsid
             )
+            p.stdin.write(text_to_copy.encode())
+            p.stdin.close()
+            p.wait()  # Wait for the parent process to exit (quick, mimics subprocess.run behavior)
             self.status_message = "cd command copied to clipboard!"
         except Exception:
             self.status_message = "Failed to copy cd command"
