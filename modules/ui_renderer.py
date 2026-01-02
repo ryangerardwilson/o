@@ -119,8 +119,9 @@ class UIRenderer:
             scroll_indicator = f"  [{top}-{bottom}/{total}]"
 
         mark_text = f"  MARKED: {len(self.nav.marked_items)}" if self.nav.marked_items else ""
+        message_text = f"  {self.nav.status_message}" if self.nav.status_message else ""
 
-        status = f"[HJKL]{help_hint}{filter_text}{hidden_indicator}{scroll_indicator}{yank_text}{mark_text}"
+        status = f"[HJKL]{help_hint}{filter_text}{hidden_indicator}{scroll_indicator}{yank_text}{mark_text}{message_text}"
 
         try:
             stdscr.move(max_y - 1, 0)

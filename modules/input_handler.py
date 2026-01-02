@@ -1,3 +1,4 @@
+# ~/Apps/vios/modules/input_handler.py
 import curses
 import os
 import time
@@ -25,6 +26,7 @@ class InputHandler:
             self.pending_comma = False
 
     def handle_key(self, stdscr, key):
+        self.nav.status_message = ""
         if self.nav.show_help:
             if key == ord('?'):
                 self.nav.show_help = False
@@ -105,10 +107,6 @@ class InputHandler:
             return False
 
         # === Other single-key commands ===
-        if key == ord('t'):
-            self.nav.copy_current_path()
-            return False
-
         if key == 12:  # Ctrl+L
             self.nav.clipboard.cleanup()
             return False
@@ -186,6 +184,11 @@ class InputHandler:
             self.pending_operator = None
             return False
 
+        if self.pending_operator == 'c' and key == ord('p'):
+            self.nav.copy_current_path()
+            self.pending_operator = None
+            return False
+
         if key == ord('d'):
             self.pending_operator = 'd'
             self.operator_timestamp = time.time()
@@ -203,6 +206,11 @@ class InputHandler:
 
         if key == ord('r'):
             self.pending_operator = 'r'
+            self.operator_timestamp = time.time()
+            return False
+
+        if key == ord('c'):
+            self.pending_operator = 'c'
             self.operator_timestamp = time.time()
             return False
 

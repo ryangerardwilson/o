@@ -1,3 +1,4 @@
+# ~/Apps/vios/modules/core_navigator.py
 import curses
 import subprocess
 import os
@@ -27,6 +28,7 @@ class FileNavigator:
         self.marked_items = set()  # set of str (absolute paths)
 
         self.cheatsheet = Constants.CHEATSHEET
+        self.status_message = ""
 
     def open_file(self, filepath: str):
         import mimetypes
@@ -100,7 +102,9 @@ class FileNavigator:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
+            self.status_message = "cd command copied to clipboard!"
         except Exception:
+            self.status_message = "Failed to copy cd command"
             pass
 
     def create_new_file(self):
