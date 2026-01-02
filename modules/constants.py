@@ -1,4 +1,3 @@
-# ~/Apps/vios/modules/constants.py
 class Constants:
     CHEATSHEET = r"""
 VIOS CHEATSHEET
@@ -37,7 +36,7 @@ Other
   nf              Create new file (no open)
   nd              Create new directory
   rn              Rename selected item
-  t               Open terminal in current directory
+  t               Copy dir path to clipboard
   .               Toggle show hidden files/dirs
   ?               Toggle this help
   Ctrl+C          Quit the app

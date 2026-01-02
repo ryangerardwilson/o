@@ -1,4 +1,3 @@
-# ~/Apps/vios/modules/input_handler.py
 import curses
 import os
 import time
@@ -107,7 +106,7 @@ class InputHandler:
 
         # === Other single-key commands ===
         if key == ord('t'):
-            self.nav.open_terminal()
+            self.nav.copy_current_path()
             return False
 
         if key == 12:  # Ctrl+L

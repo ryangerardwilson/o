@@ -1,4 +1,3 @@
-# ~/Apps/vios/modules/core_navigator.py
 import curses
 import subprocess
 import os
@@ -89,21 +88,20 @@ class FileNavigator:
         finally:
             self.need_redraw = True
 
-    def open_terminal(self):
+    def copy_current_path(self):
         current_dir = self.dir_manager.current_path
-        cd_command = f"cd \"{current_dir}\""
-
+        text_to_copy = f'cd "{current_dir}"'
+        
         try:
             subprocess.run(
-                ["wl-copy", cd_command],
+                ["wl-copy"],
+                input=text_to_copy.encode(),
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
         except Exception:
             pass
-
-        raise KeyboardInterrupt
 
     def create_new_file(self):
         stdscr = self.renderer.stdscr
