@@ -8,6 +8,8 @@ Navigation
   l / Enter       Enter directory (resets filter) or open file
   j               Down
   k               Up
+  Ctrl+J          Jump down (≈10% of list)
+  Ctrl+K          Jump up (≈10% of list)
   ,k              Jump to top
   ,j              Jump to bottom
 

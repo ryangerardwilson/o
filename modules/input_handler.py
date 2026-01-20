@@ -251,6 +251,12 @@ class InputHandler:
             self.nav.browser_selected = (self.nav.browser_selected - 1) % total
         elif key in (curses.KEY_DOWN, ord('j')) and total > 0:
             self.nav.browser_selected = (self.nav.browser_selected + 1) % total
+        elif key in (curses.KEY_SR, 11):  # Ctrl+K
+            jump = max(1, total // 10) if total > 0 else 0
+            self.nav.browser_selected = max(0, self.nav.browser_selected - jump)
+        elif key in (curses.KEY_SF, 10):  # Ctrl+J
+            jump = max(1, total // 10) if total > 0 else 0
+            self.nav.browser_selected = min(total - 1, self.nav.browser_selected + jump) if total > 0 else 0
         elif key in (curses.KEY_LEFT, ord('h')):
             parent = os.path.dirname(self.nav.dir_manager.current_path)
             if parent != self.nav.dir_manager.current_path:
