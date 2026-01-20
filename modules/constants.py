@@ -21,8 +21,8 @@ Filtering (glob-style)
   Ctrl+R          Clear filter and show all items
 
 Clipboard & Multi Operations
-  y               Start yank (copy) — yy stores marked items (or current) in clipboard
-  d               Start cut operator (dd clips marked/current items)
+  yy              Yank (copy) marked items (or current row) into clipboard
+  dd              Cut marked items (or current row) into clipboard
   x               Delete marked items or current entry immediately (bypass clipboard)
   m               Toggle mark on current item (✓) — auto-advance
   p               Copy marked items here (overwrite) OR paste saved clipboard batch
