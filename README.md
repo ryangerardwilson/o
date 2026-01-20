@@ -18,6 +18,7 @@ Operating System" focused purely on efficient file management.
   - `j` / `k` — Move down/up in selection
   - `Ctrl+J` / `Ctrl+K` — Jump roughly 10% down/up the list
   - `,k` / `,j` — Jump to top/bottom instantly
+  - `e` — Expand/collapse the selected directory inline
 - **Powerful Filtering** (glob-style):
   - `/` — Enter filter mode
     - Type pattern (e.g., `rat`, `*.py`, `*test*`)
@@ -81,6 +82,7 @@ modal file browser without leaving the terminal.
 - /: Search (type to filter, Enter to open).
 - Ctrl+J / Ctrl+K: Jump down/up quickly.
 - ,j / ,k: Jump to bottom/top.
+- e: Expand/collapse selected directory inline.
 
 ### 3.2. File Operations:
 

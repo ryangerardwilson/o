@@ -12,6 +12,7 @@ Navigation
   Ctrl+K          Jump up (≈10% of list)
   ,k              Jump to top
   ,j              Jump to bottom
+  e               Expand/collapse selected directory inline
 
 Sorting
   ,sa             Sort alphabetically (default)

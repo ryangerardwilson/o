@@ -57,9 +57,10 @@ class InputHandler:
         return True
 
     def _set_browser_selected(self, index: int):
-        items = self.nav.dir_manager.get_filtered_items()
+        items = self.nav.build_display_items()
         total = len(items)
         if total == 0:
+            self.nav.browser_selected = 0
             return
         self.nav.browser_selected = max(0, min(index, total - 1))
 
@@ -83,21 +84,26 @@ class InputHandler:
         if key == ord('?'):
             self.nav.show_help = False
             self.nav.help_scroll = 0
+            self.nav.need_redraw = True
             return True
 
         if key in (curses.KEY_UP, ord('k')):
             self.nav.help_scroll = max(0, self.nav.help_scroll - 1)
+            self.nav.need_redraw = True
             return True
         if key in (curses.KEY_DOWN, ord('j')):
             self.nav.help_scroll = min(max_scroll, self.nav.help_scroll + 1)
+            self.nav.need_redraw = True
             return True
         if key in (curses.KEY_SR, 11):  # Ctrl+K
             jump = max(1, max_visible // 2)
             self.nav.help_scroll = max(0, self.nav.help_scroll - jump)
+            self.nav.need_redraw = True
             return True
         if key in (curses.KEY_SF, 10):  # Ctrl+J
             jump = max(1, max_visible // 2)
             self.nav.help_scroll = min(max_scroll, self.nav.help_scroll + jump)
+            self.nav.need_redraw = True
             return True
 
         return False
@@ -133,6 +139,7 @@ class InputHandler:
         if key == 18:  # Ctrl+R
             self.in_filter_mode = False
             self.nav.dir_manager.filter_pattern = ""
+            self.nav.expanded_nodes.clear()
             return False
 
         if self.in_filter_mode:
@@ -160,16 +167,14 @@ class InputHandler:
                     self.nav.dir_manager.filter_pattern = ""
                 return False
 
-        items = self.nav.dir_manager.get_filtered_items()
-        total = len(items)
-        self.nav.browser_selected = max(0, min(self.nav.browser_selected, total - 1)) if total else 0
-
-        selected_name = None
-        selected_is_dir = False
-        selected_path = None
-        if total > 0:
-            selected_name, selected_is_dir = items[self.nav.browser_selected]
-            selected_path = os.path.join(self.nav.dir_manager.current_path, selected_name)
+        display_items = self.nav.build_display_items()
+        total = len(display_items)
+        if total == 0:
+            self.nav.browser_selected = 0
+            selected_name = selected_path = selected_is_dir = None
+        else:
+            self.nav.browser_selected = max(0, min(self.nav.browser_selected, total - 1))
+            selected_name, selected_is_dir, selected_path, _ = display_items[self.nav.browser_selected]
 
         if key == ord(','):
             self.pending_comma = True
@@ -212,10 +217,21 @@ class InputHandler:
 
         if key == ord('.'):
             self.nav.dir_manager.toggle_hidden()
+            self.nav.expanded_nodes.clear()
             return False
 
         if key == ord('t'):
             self.nav.open_terminal()
+            return False
+
+        if key == ord('e') and total > 0 and selected_is_dir and selected_path:
+            if selected_path in self.nav.expanded_nodes:
+                self.nav.expanded_nodes.remove(selected_path)
+                self.nav.status_message = f"Collapsed {selected_name}"
+            else:
+                self.nav.expanded_nodes.add(selected_path)
+                self.nav.status_message = f"Expanded {selected_name}"
+            self.nav.need_redraw = True
             return False
 
         # === Multi-mark operations ===
@@ -346,12 +362,14 @@ class InputHandler:
                 self.nav.browser_selected = 0
                 self.in_filter_mode = False
                 self.nav.dir_manager.filter_pattern = ""
+                self.nav.expanded_nodes.clear()
         elif key in (curses.KEY_RIGHT, ord('l'), 10, 13) and total > 0:
             if selected_is_dir:
                 self.nav.dir_manager.current_path = selected_path
                 self.nav.browser_selected = 0
                 self.in_filter_mode = False
                 self.nav.dir_manager.filter_pattern = ""
+                self.nav.expanded_nodes.clear()
             else:
                 self.nav.open_file(selected_path)
 

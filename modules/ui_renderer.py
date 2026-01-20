@@ -2,7 +2,6 @@
 import curses
 from typing import Any, Optional, Tuple, cast
 from .directory_manager import DirectoryManager
-import os
 
 
 class UIRenderer:
@@ -70,7 +69,7 @@ class UIRenderer:
             except curses.error:
                 pass
 
-        items = self.nav.dir_manager.get_filtered_items()
+        items = self.nav.build_display_items()
         total = len(items)
 
         if total > 0:
@@ -94,21 +93,23 @@ class UIRenderer:
             except curses.error:
                 pass
         else:
-            for i, (name, is_dir) in enumerate(visible_items):
+            for i, (name, is_dir, full_path, depth) in enumerate(visible_items):
                 global_idx = self.nav.list_offset + i
 
                 arrow = ">" if global_idx == self.nav.browser_selected else " "
-                current_full_path = os.path.join(self.nav.dir_manager.current_path, name)
-                mark  = "✓" if current_full_path in self.nav.marked_items else ""
-                if mark:
-                    prefix = f"{arrow}{mark} "
+                mark  = "✓" if full_path in self.nav.marked_items else " "
+                sel_block = f"{arrow}{mark} "
+
+                if is_dir:
+                    exp_symbol = "▾ " if full_path in self.nav.expanded_nodes else "▸ "
                 else:
-                    prefix = f"{arrow} "
+                    exp_symbol = "  "
 
                 color = (curses.color_pair(1) | curses.A_BOLD
                          if global_idx == self.nav.browser_selected else curses.color_pair(2))
                 suffix = '/' if is_dir else ''
-                line = f"{prefix}{name}{suffix}"
+                indent = "  " * depth
+                line = f"{indent}{sel_block}{exp_symbol}{name}{suffix}"
 
                 y = list_start_y + i
                 try:

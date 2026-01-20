@@ -35,9 +35,12 @@ class DirectoryManager:
         return " .dot" if self.show_hidden else ""
 
     def get_items(self):
+        return self.list_directory(self.current_path)
+
+    def list_directory(self, target_path: str):
         try:
-            raw_items = os.listdir(self.current_path)
-        except PermissionError:
+            raw_items = os.listdir(target_path)
+        except (PermissionError, FileNotFoundError):
             return []
 
         visible_items = []
@@ -46,25 +49,23 @@ class DirectoryManager:
             if item in {".", ".."}:
                 continue
 
-            full_path = os.path.join(self.current_path, item)
+            full_path = os.path.join(target_path, item)
             if not os.path.exists(full_path):
                 continue
 
             is_dir = os.path.isdir(full_path)
             is_hidden = item.startswith(".")
 
-            # Simple rule: show hidden items only if toggle is on
             if is_hidden and not self.show_hidden:
                 continue
 
-            # Everything else (non-hidden, or hidden+toggle on) is visible
             visible_items.append((item, is_dir))
 
         if self.sort_mode == "alpha":
             visible_items.sort(key=self._alpha_sort_key)
         else:
             reverse = self.sort_mode == "mtime_desc"
-            visible_items.sort(key=self._mtime_sort_key, reverse=reverse)
+            visible_items.sort(key=self._mtime_sort_key_factory(target_path), reverse=reverse)
 
         return visible_items
 
@@ -109,11 +110,13 @@ class DirectoryManager:
             group = 0 if is_dir else 1
         return (group, name.lower())
 
-    def _mtime_sort_key(self, entry):
-        name, _ = entry
-        full_path = os.path.join(self.current_path, name)
-        try:
-            mtime = os.path.getmtime(full_path)
-        except Exception:
-            mtime = 0
-        return (mtime, name.lower())
+    def _mtime_sort_key_factory(self, base_path: str):
+        def sorter(entry):
+            name, _ = entry
+            full_path = os.path.join(base_path, name)
+            try:
+                mtime = os.path.getmtime(full_path)
+            except Exception:
+                mtime = 0
+            return (mtime, name.lower())
+        return sorter

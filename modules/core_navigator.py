@@ -5,7 +5,7 @@ import os
 import sys
 import shutil
 import shlex
-from typing import Any, cast, List
+from typing import Any, Set, cast, List
 
 from .directory_manager import DirectoryManager
 from .clipboard_manager import ClipboardManager
@@ -30,6 +30,7 @@ class FileNavigator:
 
         # Multi-mark support — now using full absolute paths
         self.marked_items = set()  # set of str (absolute paths)
+        self.expanded_nodes: Set[str] = set()
 
         self.cheatsheet = Constants.CHEATSHEET
         self.status_message = ""
@@ -456,13 +457,13 @@ class FileNavigator:
             self.need_redraw = True
             return
 
-        items = self.dir_manager.get_filtered_items()
+        items = self.build_display_items()
         total = len(items)
         if total == 0:
             return
 
-        selected_name, selected_is_dir = items[self.browser_selected]
-        selected_path = os.path.join(self.dir_manager.current_path, selected_name)
+        selected_name, selected_is_dir, selected_path, _ = items[self.browser_selected]
+        parent_dir = os.path.dirname(selected_path)
 
         prompt = "Rename: "
         prompt_y = max_y - 1
@@ -527,8 +528,8 @@ class FileNavigator:
         if not new_name or new_name == selected_name:
             return
 
-        unique_name = self.input_handler._get_unique_name(self.dir_manager.current_path, new_name)
-        new_path = os.path.join(self.dir_manager.current_path, unique_name)
+        unique_name = self.input_handler._get_unique_name(parent_dir, new_name)
+        new_path = os.path.join(parent_dir, unique_name)
 
         try:
             os.rename(selected_path, new_path)
@@ -571,3 +572,27 @@ class FileNavigator:
                 break
 
             self.need_redraw = True
+
+    def build_display_items(self):
+        base_items = self.dir_manager.get_filtered_items()
+        display = []
+
+        for name, is_dir in base_items:
+            path = os.path.join(self.dir_manager.current_path, name)
+            display.append((name, is_dir, path, 0))
+            if is_dir and path in self.expanded_nodes:
+                self._append_expanded(path, 1, display)
+
+        return display
+
+    def _append_expanded(self, base_path: str, depth: int, collection: list):
+        children = self.dir_manager.list_directory(base_path)
+        if not children and base_path in self.expanded_nodes and not os.path.exists(base_path):
+            self.expanded_nodes.discard(base_path)
+            return
+
+        for child_name, child_is_dir in children:
+            child_path = os.path.join(base_path, child_name)
+            collection.append((child_name, child_is_dir, child_path, depth))
+            if child_is_dir and child_path in self.expanded_nodes:
+                self._append_expanded(child_path, depth + 1, collection)
