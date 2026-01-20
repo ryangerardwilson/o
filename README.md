@@ -16,6 +16,8 @@ Operating System" focused purely on efficient file management.
   - `h` — Go to parent directory (resets filter)
   - `l` / `Enter` — Enter directory or open file
   - `j` / `k` — Move down/up in selection
+  - `Ctrl+J` / `Ctrl+K` — Jump roughly 10% down/up the list
+  - `,k` / `,j` — Jump to top/bottom instantly
 - **Powerful Filtering** (glob-style):
   - `/` — Enter filter mode
     - Type pattern (e.g., `rat`, `*.py`, `*test*`)
@@ -31,6 +33,10 @@ Operating System" focused purely on efficient file management.
   - `x` — Delete all marked items or the current selection immediately (bypasses clipboard)
   - `p` — Paste the clipboard batch into the current directory
   - `Ctrl+L` — Clear clipboard
+- **Sorting Controls**:
+  - `,sa` — Sort alphabetically (default)
+  - `,sma` — Sort by modified date ascending (oldest first)
+  - `,smd` — Sort by modified date descending (newest first)
 - **File Creation**:
   - `v` — Create new empty file (prompts for filename at bottom)
 - **File Opening**:
@@ -73,6 +79,8 @@ modal file browser without leaving the terminal.
 - h: Parent dir.
 - l/Enter: Enter dir or open file in Vim.
 - /: Search (type to filter, Enter to open).
+- Ctrl+J / Ctrl+K: Jump down/up quickly.
+- ,j / ,k: Jump to bottom/top.
 
 ### 3.2. File Operations:
 
@@ -92,6 +100,12 @@ modal file browser without leaving the terminal.
 
 - t: Launches Alacritty in current dir.
 - Quit: Esc.
+
+### 3.5 Sorting:
+
+- ,sa: Sort alphabetically.
+- ,sma: Sort by modified date ascending.
+- ,smd: Sort by modified date descending.
 
 ## 4. Requirements
 

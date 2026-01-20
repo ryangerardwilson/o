@@ -13,6 +13,11 @@ Navigation
   ,k              Jump to top
   ,j              Jump to bottom
 
+Sorting
+  ,sa             Sort alphabetically (default)
+  ,sma            Sort by modified date ↑ (oldest first)
+  ,smd            Sort by modified date ↓ (newest first)
+
 Filtering (glob-style)
   /               Enter filter mode (type pattern)
                   • "rat" → matches items starting with "rat"

@@ -8,6 +8,7 @@ class DirectoryManager:
         self.current_path = os.path.realpath(start_path)
         self.filter_pattern = ""
         self.show_hidden = False  # Default: hide dotfiles/dotdirs
+        self.sort_mode = "alpha"
 
         # Keep home_path for pretty_path only
         self.home_path = os.path.realpath(os.path.expanduser("~"))
@@ -59,17 +60,11 @@ class DirectoryManager:
             # Everything else (non-hidden, or hidden+toggle on) is visible
             visible_items.append((item, is_dir))
 
-        # Sorting: non-dot dirs → non-dot files → dot dirs → dot files
-        def sort_key(entry):
-            name, is_dir = entry
-            hidden = name.startswith(".")
-            if hidden:
-                group = 2 if is_dir else 3
-            else:
-                group = 0 if is_dir else 1
-            return (group, name.lower())
-
-        visible_items.sort(key=sort_key)
+        if self.sort_mode == "alpha":
+            visible_items.sort(key=self._alpha_sort_key)
+        else:
+            reverse = self.sort_mode == "mtime_desc"
+            visible_items.sort(key=self._mtime_sort_key, reverse=reverse)
 
         return visible_items
 
@@ -100,3 +95,25 @@ class DirectoryManager:
             item for item in all_items
             if fnmatch.fnmatch(item[0].lower(), pattern_lower)
         ]
+
+    def set_sort_mode(self, mode: str):
+        if mode in {"alpha", "mtime_asc", "mtime_desc"}:
+            self.sort_mode = mode
+
+    def _alpha_sort_key(self, entry):
+        name, is_dir = entry
+        hidden = name.startswith(".")
+        if hidden:
+            group = 2 if is_dir else 3
+        else:
+            group = 0 if is_dir else 1
+        return (group, name.lower())
+
+    def _mtime_sort_key(self, entry):
+        name, _ = entry
+        full_path = os.path.join(self.current_path, name)
+        try:
+            mtime = os.path.getmtime(full_path)
+        except Exception:
+            mtime = 0
+        return (mtime, name.lower())

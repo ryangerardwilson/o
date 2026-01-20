@@ -16,6 +16,7 @@ class InputHandler:
         self.pending_comma = False
         self.comma_timestamp = 0.0
         self.comma_timeout = 0.5
+        self.comma_sequence = ""
 
     def _check_operator_timeout(self):
         if self.pending_operator and (time.time() - self.operator_timestamp > self.operator_timeout):
@@ -23,7 +24,60 @@ class InputHandler:
 
     def _check_comma_timeout(self):
         if self.pending_comma and (time.time() - self.comma_timestamp > self.comma_timeout):
-            self.pending_comma = False
+            self._reset_comma()
+
+    def _handle_comma_command(self, key, total: int) -> bool:
+        ch = self._key_to_char(key)
+        if ch is None:
+            self._reset_comma()
+            return True
+
+        self.comma_sequence += ch
+        command = self.comma_sequence
+        self.nav.leader_sequence = "," + command
+        self.nav.need_redraw = True
+
+        command_map = {
+            "j": lambda: self._set_browser_selected(total - 1 if total else 0),
+            "k": lambda: self._set_browser_selected(0),
+            "sa": lambda: self._set_sort_mode("alpha", "Sort: Name"),
+            "sma": lambda: self._set_sort_mode("mtime_asc", "Sort: Modified ↑"),
+            "smd": lambda: self._set_sort_mode("mtime_desc", "Sort: Modified ↓"),
+        }
+
+        if command in command_map:
+            command_map[command]()
+            self._reset_comma()
+            return True
+
+        if any(cmd.startswith(command) for cmd in command_map if cmd != command):
+            return True
+
+        self._reset_comma()
+        return True
+
+    def _set_browser_selected(self, index: int):
+        items = self.nav.dir_manager.get_filtered_items()
+        total = len(items)
+        if total == 0:
+            return
+        self.nav.browser_selected = max(0, min(index, total - 1))
+
+    def _set_sort_mode(self, mode: str, message: str):
+        self.nav.dir_manager.set_sort_mode(mode)
+        self.nav.status_message = message
+        self.nav.need_redraw = True
+
+    def _reset_comma(self):
+        self.pending_comma = False
+        self.comma_sequence = ""
+        self.nav.leader_sequence = ""
+        self.nav.need_redraw = True
+
+    def _key_to_char(self, key):
+        if 32 <= key <= 126:
+            return chr(key)
+        return None
 
     def handle_key(self, stdscr, key):
         self.nav.status_message = ""
@@ -117,16 +171,15 @@ class InputHandler:
 
         if key == ord(','):
             self.pending_comma = True
+            self.comma_sequence = ""
             self.comma_timestamp = time.time()
+            self.nav.leader_sequence = ","
+            self.nav.need_redraw = True
             return False
 
         if self.pending_comma:
-            if key == ord('j') and total:
-                self.nav.browser_selected = total - 1
-            elif key == ord('k'):
-                self.nav.browser_selected = 0
-            self.pending_comma = False
-            return False
+            if self._handle_comma_command(key, total):
+                return False
 
         if key == ord('.'):
             self.nav.dir_manager.toggle_hidden()

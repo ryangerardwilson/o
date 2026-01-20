@@ -32,6 +32,7 @@ class FileNavigator:
 
         self.cheatsheet = Constants.CHEATSHEET
         self.status_message = ""
+        self.leader_sequence = ""
 
     def open_file(self, filepath: str):
         import mimetypes
@@ -136,9 +137,10 @@ class FileNavigator:
             pass
 
     def create_new_file(self):
-        stdscr = self.renderer.stdscr
-        if not stdscr:
+        stdscr_opt = self.renderer.stdscr
+        if stdscr_opt is None:
             return
+        stdscr = cast(Any, stdscr_opt)
 
         max_y, max_x = stdscr.getmaxyx()
 
@@ -149,6 +151,7 @@ class FileNavigator:
 
         prompt = "New file: "
         prompt_y = max_y - 1
+        filename = ""
 
         stdscr.move(prompt_y, 0)
         stdscr.clrtoeol()
@@ -207,6 +210,26 @@ class FileNavigator:
             stdscr.timeout(40)  # Restore run()'s timeout
             self.need_redraw = True
 
+        if not filename:
+            return
+
+        unique_name = self.input_handler._get_unique_name(self.dir_manager.current_path, filename)
+        filepath = os.path.join(self.dir_manager.current_path, unique_name)
+
+        try:
+            with open(filepath, 'w'):
+                pass
+            os.utime(filepath, None)
+        except Exception as e:
+            stdscr.addstr(prompt_y, 0, f"Error creating file: {str(e)[:max_x-20]}", curses.A_BOLD)
+            stdscr.clrtoeol()
+            stdscr.refresh()
+            stdscr.getch()
+            return
+
+        # Open the newly created file in Vim
+        self.open_file(filepath)
+
     def open_terminal(self):
         cwd = self.dir_manager.current_path
         commands: List[list[str]] = []
@@ -243,26 +266,6 @@ class FileNavigator:
 
         self.status_message = "No terminal found"
         curses.flash()
-
-        if not filename:
-            return
-
-        unique_name = self.input_handler._get_unique_name(self.dir_manager.current_path, filename)
-        filepath = os.path.join(self.dir_manager.current_path, unique_name)
-
-        try:
-            with open(filepath, 'w'):
-                pass
-            os.utime(filepath, None)
-        except Exception as e:
-            stdscr.addstr(prompt_y, 0, f"Error creating file: {str(e)[:max_x-20]}", curses.A_BOLD)
-            stdscr.clrtoeol()
-            stdscr.refresh()
-            stdscr.getch()
-            return
-
-        # Open the newly created file in Vim
-        self.open_file(filepath)
 
     def create_new_file_no_open(self):
         stdscr = self.renderer.stdscr

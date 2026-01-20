@@ -110,6 +110,11 @@ class UIRenderer:
             fp = self.nav.dir_manager.filter_pattern
             filter_text = f"  {fp if fp.startswith('/') else '/' + fp}"
 
+        leader_text = ""
+        leader_seq = getattr(self.nav, "leader_sequence", "")
+        if leader_seq:
+            leader_text = f"  LEADER:{leader_seq}"
+
         hidden_indicator = self.nav.dir_manager.get_hidden_status_text()
         help_hint = "  ? help" if not self.nav.show_help else ""
         scroll_indicator = ""
@@ -121,7 +126,7 @@ class UIRenderer:
         mark_text = f"  MARKED: {len(self.nav.marked_items)}" if self.nav.marked_items else ""
         message_text = f"  {self.nav.status_message}" if self.nav.status_message else ""
 
-        status = f"[HJKL]{help_hint}{filter_text}{hidden_indicator}{scroll_indicator}{yank_text}{mark_text}{message_text}"
+        status = f"[HJKL]{help_hint}{filter_text}{leader_text}{hidden_indicator}{scroll_indicator}{yank_text}{mark_text}{message_text}"
 
         try:
             stdscr.move(max_y - 1, 0)
