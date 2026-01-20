@@ -28,10 +28,6 @@ Clipboard & Multi Operations
   p               Copy marked items here (overwrite) OR paste saved clipboard batch
   Ctrl+L          Clear clipboard
 
-File Opening
-  • Text files (.py, .txt, .md, etc.) → Vim
-  • PDF files → Zathura
-
 Other
   v               Create new file and open in Vim
   nf              Create new file (no open)
