@@ -27,7 +27,7 @@ class UIRenderer:
         if self.nav.show_help:
             lines = [line.rstrip() for line in self.nav.cheatsheet.strip().split('\n')]
             total_lines = len(lines)
-            max_visible = max_y
+            max_visible = max(1, max_y - 1)
             start = max(0, min(self.nav.help_scroll, max(0, total_lines - max_visible)))
             visible = lines[start:start + max_visible]
             for i, line in enumerate(visible):
@@ -47,12 +47,11 @@ class UIRenderer:
 
         display_path = DirectoryManager.pretty_path(self.nav.dir_manager.current_path)
         try:
-            stdscr.addstr(0, max(0, (max_x - len(display_path)) // 2),
-                          display_path[:max_x], curses.color_pair(2) | curses.A_BOLD)
+            stdscr.addstr(0, 0, display_path[:max_x], curses.color_pair(2) | curses.A_BOLD)
         except curses.error:
             pass
 
-        list_start_y = 2
+        list_start_y = 1
         available_height = max_y - list_start_y - 1
         if available_height < 0:
             available_height = 0
