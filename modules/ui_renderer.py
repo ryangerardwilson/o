@@ -26,12 +26,22 @@ class UIRenderer:
 
         if self.nav.show_help:
             lines = [line.rstrip() for line in self.nav.cheatsheet.strip().split('\n')]
-            start_y = 0
-            for i, line in enumerate(lines):
+            total_lines = len(lines)
+            max_visible = max_y
+            start = max(0, min(self.nav.help_scroll, max(0, total_lines - max_visible)))
+            visible = lines[start:start + max_visible]
+            for i, line in enumerate(visible):
                 try:
-                    stdscr.addstr(start_y + i, 0, line[:max_x])
+                    stdscr.addstr(i, 0, line[:max_x])
                 except curses.error:
                     pass
+            status = f"HELP {start+1}-{start+len(visible)} / {total_lines}"
+            try:
+                stdscr.move(max_y - 1, 0)
+                stdscr.clrtoeol()
+                stdscr.addstr(max_y - 1, 0, status[:max_x-1], curses.color_pair(5) | curses.A_BOLD)
+            except curses.error:
+                pass
             stdscr.refresh()
             return
 

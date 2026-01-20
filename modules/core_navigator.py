@@ -23,6 +23,7 @@ class FileNavigator:
         self.input_handler = InputHandler(self)
 
         self.show_help = False
+        self.help_scroll = 0
         self.browser_selected = 0
         self.list_offset = 0
         self.need_redraw = True

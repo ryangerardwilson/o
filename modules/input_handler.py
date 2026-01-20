@@ -74,6 +74,34 @@ class InputHandler:
         self.nav.leader_sequence = ""
         self.nav.need_redraw = True
 
+    def _handle_help_scroll(self, key, stdscr):
+        lines = len(self.nav.cheatsheet.strip().split('\n'))
+        max_y = stdscr.getmaxyx()[0] if stdscr else 0
+        max_visible = max(1, max_y - 1)
+        max_scroll = max(0, lines - max_visible)
+
+        if key == ord('?'):
+            self.nav.show_help = False
+            self.nav.help_scroll = 0
+            return True
+
+        if key in (curses.KEY_UP, ord('k')):
+            self.nav.help_scroll = max(0, self.nav.help_scroll - 1)
+            return True
+        if key in (curses.KEY_DOWN, ord('j')):
+            self.nav.help_scroll = min(max_scroll, self.nav.help_scroll + 1)
+            return True
+        if key in (curses.KEY_SR, 11):  # Ctrl+K
+            jump = max(1, max_visible // 2)
+            self.nav.help_scroll = max(0, self.nav.help_scroll - jump)
+            return True
+        if key in (curses.KEY_SF, 10):  # Ctrl+J
+            jump = max(1, max_visible // 2)
+            self.nav.help_scroll = min(max_scroll, self.nav.help_scroll + jump)
+            return True
+
+        return False
+
     def _key_to_char(self, key):
         if 32 <= key <= 126:
             return chr(key)
@@ -82,8 +110,8 @@ class InputHandler:
     def handle_key(self, stdscr, key):
         self.nav.status_message = ""
         if self.nav.show_help:
-            if key == ord('?'):
-                self.nav.show_help = False
+            handled = self._handle_help_scroll(key, stdscr)
+            if handled:
                 return False
             return False
 
@@ -179,6 +207,7 @@ class InputHandler:
 
         if key == ord('?'):
             self.nav.show_help = True
+            self.nav.help_scroll = 0
             return False
 
         if key == ord('.'):
