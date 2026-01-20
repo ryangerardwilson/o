@@ -13,6 +13,7 @@ Navigation
   Ctrl+H          Go to previous directory in history
   Ctrl+L          Go to next directory in history
   e               Expand/collapse selected directory inline
+  Esc             Collapse all expansions and return to ~
 
 Filtering (glob-style)
   /               Enter filter mode (type pattern)

@@ -186,6 +186,14 @@ class InputHandler:
                     self.nav.dir_manager.filter_pattern = ""
                 return False
 
+        if key == 27:  # Esc outside filter mode
+            self._reset_comma()
+            self.pending_operator = None
+            self.nav.reset_to_home()
+            self.in_filter_mode = False
+            self.nav.status_message = "Returned to ~"
+            return False
+
         display_items = self.nav.build_display_items()
         total = len(display_items)
         selection = None

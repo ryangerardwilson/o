@@ -19,6 +19,7 @@ Operating System" focused purely on efficient file management.
   - `Ctrl+J` / `Ctrl+K` — Jump roughly 10% down/up the list
   - `e` — Expand/collapse the selected directory inline
   - `Ctrl+H` / `Ctrl+L` — Go backward/forward through directory history
+  - `Esc` — Collapse all expansions and return to `~`
 - **Leader Commands (press `,` first)**:
   - `,j` / `,k` — Jump to bottom/top instantly
   - `,sa` / `,sma` / `,smd` — Sorting shortcuts
@@ -86,6 +87,7 @@ modal file browser without leaving the terminal.
 - Ctrl+J / Ctrl+K: Jump down/up quickly.
 - e: Expand/collapse selected directory inline.
 - Ctrl+H / Ctrl+L: Jump backward/forward through directory history.
+- Esc: Collapse all expansions and return to `~`.
 
 ### 3.2. File Operations:
 

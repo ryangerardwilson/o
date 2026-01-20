@@ -642,3 +642,9 @@ class FileNavigator:
         self.browser_selected = 0
         self.list_offset = 0
         self.need_redraw = True
+
+    def reset_to_home(self):
+        home = self.dir_manager.home_path
+        self.expanded_nodes.clear()
+        self.dir_manager.filter_pattern = ""
+        self.change_directory(home)
