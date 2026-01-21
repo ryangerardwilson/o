@@ -339,16 +339,16 @@ class UIRenderer:
                 except curses.error:
                     pass
 
-        selected_stream = state.index_map.get(selected_index)
-        if selected_stream and 0 <= label_row < max_y:
+        if 0 <= label_row < max_y:
             name, is_dir, *_ = items[selected_index]
             label = name + ("/" if is_dir else "")
-            start_x = selected_stream.column - len(label) // 2
-            start_x = max(0, min(max_x - len(label), start_x))
+            start_x = 0
             try:
                 stdscr.move(label_row, 0)
                 stdscr.clrtoeol()
-                stdscr.addstr(label_row, start_x, label[: max_x - start_x], curses.A_BOLD)
+                width = max(0, max_x - start_x)
+                if width > 0:
+                    stdscr.addstr(label_row, start_x, label[:width], curses.A_BOLD)
             except curses.error:
                 pass
 

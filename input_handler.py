@@ -129,6 +129,24 @@ class InputHandler:
         else:
             self._set_browser_selected(total - 1 if total else 0)
 
+    def _move_selection(self, total: int, delta: int):
+        if total <= 0:
+            return
+        self.nav.browser_selected = (self.nav.browser_selected + delta) % total
+        self.nav.update_visual_active(self.nav.browser_selected)
+
+    def _jump_selection(self, total: int, direction: str):
+        if total <= 0:
+            return
+        jump = max(1, total // 10)
+        if direction == "up":
+            self.nav.browser_selected = max(0, self.nav.browser_selected - jump)
+        else:
+            self.nav.browser_selected = (
+                min(total - 1, self.nav.browser_selected + jump) if total else 0
+            )
+        self.nav.update_visual_active(self.nav.browser_selected)
+
     def _set_sort_mode(self, mode: str, message: str, context_path):
         if context_path:
             self.nav.dir_manager.set_sort_mode_for_path(context_path, mode)
@@ -377,6 +395,9 @@ class InputHandler:
 
         if key == 8:  # Ctrl+H
             self.nav.exit_visual_mode()
+            if self.nav.layout_mode == "matrix":
+                self._jump_selection(total, "up")
+                return False
             if self.nav.go_history_back():
                 self.in_filter_mode = False
                 self.nav.dir_manager.filter_pattern = ""
@@ -386,6 +407,9 @@ class InputHandler:
 
         if key == 12:  # Ctrl+L
             self.nav.exit_visual_mode()
+            if self.nav.layout_mode == "matrix":
+                self._jump_selection(total, "down")
+                return False
             if self.nav.go_history_forward():
                 self.in_filter_mode = False
                 self.nav.dir_manager.filter_pattern = ""
@@ -555,37 +579,80 @@ class InputHandler:
         if self.pending_operator:
             self.pending_operator = None
 
-        # === Navigation ===
-        if key in (curses.KEY_UP, ord("k")) and total > 0:
-            self.nav.browser_selected = (self.nav.browser_selected - 1) % total
-            self.nav.update_visual_active(self.nav.browser_selected)
-        elif key in (curses.KEY_DOWN, ord("j")) and total > 0:
-            self.nav.browser_selected = (self.nav.browser_selected + 1) % total
-            self.nav.update_visual_active(self.nav.browser_selected)
+        is_matrix = self.nav.layout_mode == "matrix"
+
+        if total > 0:
+            if is_matrix:
+                if key == ord("h"):
+                    self._move_selection(total, -1)
+                    return False
+                if key == ord("l"):
+                    self._move_selection(total, 1)
+                    return False
+                if key == ord("j"):
+                    if selected_is_dir and selected_path:
+                        if self.nav.change_directory(selected_path):
+                            self.in_filter_mode = False
+                            self.nav.dir_manager.filter_pattern = ""
+                            self.nav.exit_visual_mode()
+                    elif selected_path:
+                        self.nav.open_file(selected_path)
+                    return False
+                if key == ord("k"):
+                    parent = os.path.dirname(self.nav.dir_manager.current_path)
+                    if parent != self.nav.dir_manager.current_path:
+                        if self.nav.change_directory(parent):
+                            self.in_filter_mode = False
+                            self.nav.dir_manager.filter_pattern = ""
+                            self.nav.exit_visual_mode()
+                    return False
+            else:
+                if key == ord("j"):
+                    self._move_selection(total, 1)
+                    return False
+                if key == ord("k"):
+                    self._move_selection(total, -1)
+                    return False
+                if key == ord("h"):
+                    parent = os.path.dirname(self.nav.dir_manager.current_path)
+                    if parent != self.nav.dir_manager.current_path:
+                        if self.nav.change_directory(parent):
+                            self.in_filter_mode = False
+                            self.nav.dir_manager.filter_pattern = ""
+                            self.nav.exit_visual_mode()
+                    return False
+                if key == ord("l"):
+                    if selected_is_dir and selected_path:
+                        if self.nav.change_directory(selected_path):
+                            self.in_filter_mode = False
+                            self.nav.dir_manager.filter_pattern = ""
+                            self.nav.exit_visual_mode()
+                    elif selected_path:
+                        self.nav.open_file(selected_path)
+                    return False
+
+        if key == curses.KEY_UP and total > 0:
+            self._move_selection(total, -1)
+        elif key == curses.KEY_DOWN and total > 0:
+            self._move_selection(total, 1)
         elif key in (curses.KEY_SR, 11):  # Ctrl+K
-            jump = max(1, total // 10) if total > 0 else 0
-            self.nav.browser_selected = max(0, self.nav.browser_selected - jump)
-            self.nav.update_visual_active(self.nav.browser_selected)
+            self._jump_selection(total, "up")
         elif key in (curses.KEY_SF, 10):  # Ctrl+J
-            jump = max(1, total // 10) if total > 0 else 0
-            self.nav.browser_selected = (
-                min(total - 1, self.nav.browser_selected + jump) if total > 0 else 0
-            )
-            self.nav.update_visual_active(self.nav.browser_selected)
-        elif key in (curses.KEY_LEFT, ord("h")):
+            self._jump_selection(total, "down")
+        elif key == curses.KEY_LEFT:
             parent = os.path.dirname(self.nav.dir_manager.current_path)
             if parent != self.nav.dir_manager.current_path:
                 if self.nav.change_directory(parent):
                     self.in_filter_mode = False
                     self.nav.dir_manager.filter_pattern = ""
                     self.nav.exit_visual_mode()
-        elif key in (curses.KEY_RIGHT, ord("l")) and total > 0:
-            if selected_is_dir:
+        elif key == curses.KEY_RIGHT and total > 0:
+            if selected_is_dir and selected_path:
                 if self.nav.change_directory(selected_path):
                     self.in_filter_mode = False
                     self.nav.dir_manager.filter_pattern = ""
                     self.nav.exit_visual_mode()
-            else:
+            elif selected_path:
                 self.nav.open_file(selected_path)
 
         return False
