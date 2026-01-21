@@ -189,6 +189,34 @@ class FileNavigator:
         self._set_current_path(new_real)
         return True
 
+    def notify_directory_changed(self, *paths: Optional[str]):
+        real_current = os.path.realpath(self.dir_manager.current_path)
+        targets = []
+        for path in paths:
+            if path:
+                targets.append(os.path.realpath(path))
+        if not targets:
+            targets.append(real_current)
+
+        current_changed = False
+        for target in targets:
+            self.dir_manager.refresh_cache(target)
+            if target == real_current:
+                current_changed = True
+
+        if current_changed:
+            self.reset_matrix_state()
+
+        self.need_redraw = True
+
+        if current_changed:
+            items = self.build_display_items()
+            total = len(items)
+            if total == 0:
+                self.browser_selected = 0
+            else:
+                self.browser_selected = max(0, min(self.browser_selected, total - 1))
+
     def go_history_back(self):
         if not self.bookmarks or self.bookmark_index <= 0:
             self.status_message = "No previous bookmark"

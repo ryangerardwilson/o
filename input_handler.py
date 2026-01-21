@@ -156,6 +156,13 @@ class InputHandler:
             )
         self.nav.update_visual_active(self.nav.browser_selected)
 
+    def _notify_directories(self, dirs):
+        real_dirs = {os.path.realpath(d) for d in dirs if d}
+        if real_dirs:
+            self.nav.notify_directory_changed(*real_dirs)
+        else:
+            self.nav.notify_directory_changed()
+
     def _set_sort_mode(self, mode: str, message: str, context_path):
         if context_path:
             self.nav.dir_manager.set_sort_mode_for_path(context_path, mode)
@@ -493,6 +500,7 @@ class InputHandler:
                 count = self.nav.clipboard.entry_count
                 noun = "item" if count == 1 else "items"
                 self.nav.status_message = f"Pasted {count} {noun}"
+                self._notify_directories({target_dir})
             except Exception:
                 self._flash()
             return False
@@ -504,12 +512,14 @@ class InputHandler:
                     self.nav.exit_visual_mode()
                     return False
                 success = True
+                dirs = set()
                 for path, _, is_dir_entry in entries:
                     try:
                         if is_dir_entry:
                             shutil.rmtree(path)
                         else:
                             os.remove(path)
+                        dirs.add(os.path.dirname(path))
                     except Exception:
                         success = False
                         break
@@ -518,6 +528,7 @@ class InputHandler:
                     noun = "item" if count == 1 else "items"
                     self.nav.status_message = f"Deleted {count} {noun}"
                     self.nav.exit_visual_mode()
+                    self._notify_directories(dirs)
                 else:
                     self._flash()
                 self.nav.need_redraw = True
@@ -534,6 +545,8 @@ class InputHandler:
                 self._flash()
             finally:
                 self.nav.need_redraw = True
+                parent_dir = os.path.dirname(selected_path or self.nav.dir_manager.current_path)
+                self._notify_directories({parent_dir})
             return False
 
         # === yy / dd operators ===
@@ -549,6 +562,8 @@ class InputHandler:
                     self.nav.clipboard.yank(
                         selected_path, selected_name, selected_is_dir, cut=True
                     )
+                    parent_dir = os.path.dirname(selected_path or self.nav.dir_manager.current_path)
+                    self._notify_directories({parent_dir})
                     handled = True
                 except Exception:
                     self._flash()
@@ -705,18 +720,21 @@ class InputHandler:
             return
 
         success = True
+        affected_dirs = set()
         for full_path in list(self.nav.marked_items):
             try:
                 if os.path.isdir(full_path):
                     shutil.rmtree(full_path)
                 else:
                     os.remove(full_path)
+                affected_dirs.add(os.path.dirname(full_path))
             except Exception:
                 success = False
                 break
 
         if success:
             self.nav.marked_items.clear()
+            self._notify_directories(affected_dirs)
         else:
             self._flash()
 
@@ -730,8 +748,10 @@ class InputHandler:
 
         if not dest_dir or not os.path.isdir(dest_dir):
             dest_dir = self.nav.dir_manager.current_path
+        dest_dir_real = os.path.realpath(dest_dir)
         success = True
-
+        source_dirs = set()
+        
         for full_path in list(self.nav.marked_items):
             if not os.path.exists(full_path):
                 success = False
@@ -739,6 +759,7 @@ class InputHandler:
 
             name = os.path.basename(full_path)
             dest_path = os.path.join(dest_dir, name)
+            source_dirs.add(os.path.dirname(full_path))
 
             try:
                 # Remove existing destination if it exists (overwrite)
@@ -761,6 +782,11 @@ class InputHandler:
 
         if success:
             self.nav.marked_items.clear()
+            notify_dirs = set()
+            if not copy_only:
+                notify_dirs.update(source_dirs)
+            notify_dirs.add(dest_dir_real)
+            self._notify_directories(notify_dirs)
         else:
             self._flash()
 
@@ -791,6 +817,9 @@ class InputHandler:
             action = "Cut" if cut else "Yanked"
             noun = "item" if count == 1 else "items"
             self.nav.status_message = f"{action} {count} {noun} to clipboard"
+            if cut:
+                dirs = {os.path.dirname(path) for path, _, _ in entries}
+                self._notify_directories(dirs)
             return True
         except Exception:
             self._flash()
@@ -842,6 +871,9 @@ class InputHandler:
         noun = "item" if count == 1 else "items"
         self.nav.status_message = f"{action} {count} {noun} to clipboard"
         self.nav.exit_visual_mode()
+        if cut:
+            dirs = {os.path.dirname(path) for path, _, _ in entries}
+            self._notify_directories(dirs)
         return True
 
     def _commit_visual_selection(self, items):

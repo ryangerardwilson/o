@@ -236,6 +236,7 @@ class FileActionService:
                 stdscr.getch()
             return
 
+        self.nav.notify_directory_changed(base_dir)
         self.open_file(filepath)
 
     def create_new_file_no_open(self, base_path: Optional[str] = None):
@@ -265,6 +266,10 @@ class FileActionService:
                 stdscr.clrtoeol()
                 stdscr.refresh()
                 stdscr.getch()
+            return
+
+        self.nav.notify_directory_changed(base_dir)
+        self.nav.status_message = f"Created file: {unique_name}"
 
     def create_new_directory(self, base_path: Optional[str] = None):
         dirname = self._prompt_for_input("New dir: ")
@@ -293,8 +298,7 @@ class FileActionService:
                 stdscr.getch()
             return
 
-        self.nav.dir_manager.refresh_cache(base_dir)
-        self.nav.need_redraw = True
+        self.nav.notify_directory_changed(base_dir)
         self.nav.status_message = f"Created directory: {unique_name}"
 
     def rename_selected(self):
@@ -381,6 +385,10 @@ class FileActionService:
             stdscr.clrtoeol()
             stdscr.refresh()
             stdscr.getch()
+            return
+
+        self.nav.notify_directory_changed(parent_dir)
+        self.nav.status_message = f"Renamed to {unique_name}" if unique_name != selected_name else "Renamed"
 
     def open_terminal(self):
         cwd = self.nav.dir_manager.current_path
