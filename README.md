@@ -27,14 +27,14 @@ shell.
 
 Installer flags of note:
 
-- `--version <x.y.z>` or `-v <x.y.z>`: install a specific tagged release
-  (`v0.3.0`, etc.).
-- `--version` (no argument): print the latest available release version without
+- `-v <x.y.z>`: install a specific tagged release (`v0.3.0`, etc.).
+- `-v` (no argument): print the latest available release version without
   installing.
-- `--upgrade`: reinstall only if GitHub has a newer release than your current
-  local version.
-- `--binary /path/to/o-linux-x64.tar.gz`: install from a previously downloaded
+- `-u`: reinstall only if GitHub has a newer release than your current local
+  version.
+- `-b /path/to/o-linux-x64.tar.gz`: install from a previously downloaded
   archive.
+- `-h`: show usage information for the installer.
 - `--no-modify-path`: skip auto-updating shell config files; the script will
   print the PATH export you should add manually.
 

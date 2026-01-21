@@ -19,10 +19,10 @@ ${APP^^} Installer
 Usage: install.sh [options]
 
 Options:
-  -h, --help                 Show this help and exit
-  -v, --version <version>    Install a specific release (e.g., 0.1.0 or v0.1.0)
-      --version              Print the latest release version and exit
-      --upgrade              Reinstall the latest release if it is newer
+  -h                         Show this help and exit
+  -v [<version>]             Install a specific release (e.g., 0.1.0 or v0.1.0)
+                             Without an argument, print the latest release version and exit
+  -u                         Reinstall the latest release if it is newer (upgrade)
   -b, --binary <path>        Install from a local binary bundle
       --no-modify-path       Skip editing shell rc files
 EOF
@@ -39,13 +39,11 @@ upgrade=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -h|--help) usage; exit 0 ;;
-    -v)
-      [[ -n "${2:-}" ]] || die "-v requires a version"
-      requested_version="$2"
-      shift 2
+    -h|--help)
+      usage
+      exit 0
       ;;
-    --version)
+    -v)
       if [[ -n "${2:-}" && "${2:0:1}" != "-" ]]; then
         requested_version="$2"
         shift 2
@@ -54,14 +52,40 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
-    --upgrade) upgrade=true; shift ;;
+    -u|--upgrade)
+      upgrade=true
+      shift
+      ;;
     -b|--binary)
       [[ -n "${2:-}" ]] || die "--binary requires a path"
       binary_path="$2"
       shift 2
       ;;
     --no-modify-path) no_modify_path=true; shift ;;
-    *) info "Unknown option $1"; shift ;;
+    --version)
+      info "--version is deprecated. Use -v instead."
+      if [[ -n "${2:-}" && "${2:0:1}" != "-" ]]; then
+        requested_version="$2"
+        shift 2
+      else
+        show_latest=true
+        shift
+      fi
+      ;;
+    --upgrade)
+      info "--upgrade is deprecated. Use -u instead."
+      upgrade=true
+      shift
+      ;;
+    --help)
+      info "--help is deprecated. Use -h instead."
+      usage
+      exit 0
+      ;;
+    *)
+      info "Unknown option $1"
+      shift
+      ;;
   esac
 done
 
@@ -77,14 +101,14 @@ get_latest_version() {
 
 if $show_latest; then
   [[ "$upgrade" == false && -z "$binary_path" && -z "$requested_version" ]] || \
-    die "--version (no arg) cannot be combined with other options"
+    die "-v (no arg) cannot be combined with other options"
   get_latest_version
   exit 0
 fi
 
 if $upgrade; then
-  [[ -z "$binary_path" ]] || die "--upgrade cannot be used with --binary"
-  [[ -z "$requested_version" ]] || die "--upgrade cannot be combined with --version"
+  [[ -z "$binary_path" ]] || die "-u cannot be used with -b/--binary"
+  [[ -z "$requested_version" ]] || die "-u cannot be combined with -v"
   latest=$(get_latest_version)
   if command -v "$APP" >/dev/null 2>&1; then
     installed=$($APP --version 2>/dev/null || true)
