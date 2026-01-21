@@ -374,15 +374,17 @@ class UIRenderer:
                     pass
 
         if 0 <= label_row < max_y:
-            name, is_dir, *_ = items[selected_index]
-            label = name + ("/" if is_dir else "")
+            name, is_dir, path, _ = items[selected_index]
+            pretty = DirectoryManager.pretty_path(path)
+            if is_dir and not pretty.endswith("/"):
+                pretty = pretty + "/"
             start_x = 0
             try:
                 stdscr.move(label_row, 0)
                 stdscr.clrtoeol()
                 width = max(0, max_x - start_x)
                 if width > 0:
-                    stdscr.addstr(label_row, start_x, label[:width])
+                    stdscr.addstr(label_row, start_x, pretty[:width])
             except curses.error:
                 pass
 
