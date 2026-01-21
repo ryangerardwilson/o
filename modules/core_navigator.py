@@ -616,6 +616,18 @@ class FileNavigator:
         for entry in to_remove:
             self.expanded_nodes.discard(entry)
 
+    def collapse_expansions_under(self, base_path: str):
+        real_base = os.path.realpath(base_path)
+        if not real_base:
+            return
+        prefix = f"{real_base}{os.sep}"
+        to_remove = [p for p in self.expanded_nodes if p == real_base or p.startswith(prefix)]
+        if not to_remove:
+            return
+        for entry in to_remove:
+            self.expanded_nodes.discard(entry)
+        self.need_redraw = True
+
     def change_directory(self, new_path: str, *, record_history: bool = True):
         new_real = os.path.realpath(new_path)
         if not os.path.isdir(new_real):

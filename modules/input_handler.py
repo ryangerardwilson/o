@@ -18,6 +18,9 @@ class InputHandler:
         self.comma_timeout = 2.0
         self.comma_sequence = ""
 
+        self.last_escape_time = 0.0
+        self.escape_double_threshold = 0.4
+
     def _check_operator_timeout(self):
         if self.pending_operator and (time.time() - self.operator_timestamp > self.operator_timeout):
             self.pending_operator = None
@@ -270,11 +273,23 @@ class InputHandler:
                 return False
 
         if key == 27:  # Esc outside filter mode
+            now = time.time()
+            is_double = (now - self.last_escape_time) <= self.escape_double_threshold
+            self.last_escape_time = 0.0 if is_double else now
+
             self._reset_comma()
             self.pending_operator = None
-            self.nav.reset_to_home()
             self.in_filter_mode = False
-            self.nav.status_message = "Returned to ~"
+            self.nav.dir_manager.filter_pattern = ""
+
+            if is_double:
+                self.nav.reset_to_home()
+                self.nav.status_message = "Returned to ~"
+            else:
+                current_path = self.nav.dir_manager.current_path
+                self.nav.collapse_expansions_under(current_path)
+                self.nav.status_message = f"Collapsed {os.path.basename(current_path) or current_path}"
+
             return False
 
         display_items = self.nav.build_display_items()

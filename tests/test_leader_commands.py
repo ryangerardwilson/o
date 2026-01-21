@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+import time
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -18,6 +19,7 @@ class DummyDirManager:
         self.filter_pattern = ""
         self.sort_mode = "alpha"
         self.sort_map = {}
+        self.home_path = "/home/test"
 
     def set_sort_mode(self, mode: str):
         self.sort_mode = mode
@@ -37,6 +39,13 @@ class DummyNavigator:
         self.leader_sequence = ""
         self.need_redraw = False
         self.browser_selected = 0
+        self.collapsed_paths = []
+        self.reset_home_called = False
+        self.history = [current_path]
+        self.history_index = 0
+        self.show_help = False
+        self.help_scroll = 0
+        self.cheatsheet = ""
 
     def build_display_items(self):
         return list(self.display_items)
@@ -52,6 +61,18 @@ class DummyNavigator:
 
     def copy_current_path(self):
         pass
+
+    def collapse_expansions_under(self, base_path):
+        real = os.path.realpath(base_path)
+        prefix = f"{real}{os.sep}"
+        to_remove = {p for p in self.expanded_nodes if p == real or p.startswith(prefix)}
+        self.expanded_nodes.difference_update(to_remove)
+        self.collapsed_paths.append(real)
+
+    def reset_to_home(self):
+        self.reset_home_called = True
+        self.expanded_nodes.clear()
+        self.dir_manager.current_path = os.path.realpath(self.dir_manager.home_path)
 def test_scope_detection_for_nested_selection():
     items = [
         ("src", True, "/proj/src", 0),
@@ -191,3 +212,30 @@ def test_creation_falls_back_to_current_directory_when_no_context():
     handler._handle_comma_command(ord('f'), len(items), selection, context_path, scope_range, target_dir)
 
     assert nav.create_calls == [("file", os.path.realpath(target_dir))]
+
+
+def test_single_escape_collapses_current_scope():
+    nav = DummyNavigator([], "/proj")
+    nav.expanded_nodes.update({"/proj/src", "/proj/src/foo", "/other"})
+    handler = InputHandler(nav)
+
+    handler.handle_key(None, 27)
+
+    assert os.path.realpath("/proj") in nav.collapsed_paths
+    assert "/proj/src" not in nav.expanded_nodes
+    assert "/other" in nav.expanded_nodes
+    assert nav.status_message.startswith("Collapsed")
+
+
+def test_double_escape_returns_home_and_clears_expansions():
+    nav = DummyNavigator([], "/proj")
+    nav.expanded_nodes.update({"/proj/src", "/other"})
+    handler = InputHandler(nav)
+
+    handler.handle_key(None, 27)
+    handler.handle_key(None, 27)
+
+    assert nav.reset_home_called
+    assert nav.expanded_nodes == set()
+    assert nav.dir_manager.current_path == os.path.realpath(nav.dir_manager.home_path)
+    assert nav.status_message == "Returned to ~"
