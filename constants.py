@@ -4,8 +4,19 @@ class Constants:
 VIOS CHEATSHEET
 
 Navigation
+  Enter           Toggle Matrix (default) ↔ List view
+
+  -- Matrix mode --
+  h               Move left across streams
+  l               Move right across streams
+  j               Enter focused directory / open file
+  k               Return to parent directory
+  Ctrl+H          Page left (≈10% of streams)
+  Ctrl+L          Page right (≈10% of streams)
+
+  -- List mode --
   h               Parent directory (resets filter)
-  l / Enter       Enter directory (resets filter) or open file
+  l               Enter directory (resets filter) or open file
   j               Down
   k               Up
   Ctrl+J          Jump down (≈10% of list)
@@ -34,6 +45,7 @@ Clipboard & Multi Operations
 Visual Mode
   v               Enter visual selection; press v again to add range to marks
   j / k           Extend/shrink selection while in visual mode
+                  (Matrix mode freezes selected streams while active)
   Esc             Exit visual mode without adding range
 
 Other

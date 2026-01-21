@@ -2,7 +2,9 @@
 
 `o` is a lightweight, Vim-inspired directory browser for your terminal. Navigate
 directories, open files in your preferred editor, create new files, yank/cut/
-paste, and launch terminals — all from a clean, fast curses interface.
+paste, and launch terminals — all from a fast curses interface. By default `o`
+opens in a “Matrix” inspired view where each filesystem entry appears as a
+falling column; you can toggle back to the classic list view whenever you like.
 
 Built with Python and curses, `o` turns your terminal into a "Vi-like Operating
 System" focused purely on efficient file management.
@@ -59,17 +61,20 @@ python main.py
 
 ---
 
-## Features
-
-- **Vim-style Navigation**:
-  - `h` — Go to parent directory (resets filter)
-  - `l` / `Enter` — Enter directory or open file
-  - `j` / `k` — Move down/up in selection
-  - `Ctrl+J` / `Ctrl+K` — Jump roughly 10% down/up the list
-  - `e` — Expand/collapse the selected directory inline
-  - `Ctrl+H` / `Ctrl+L` — Go backward/forward through directory history
-  - `Esc` — Collapse all expansions and return to `~`
-- **Leader Commands (press `,` first)**:
+- **Dual UI Modes**
+  - **Matrix Mode** *(default)*: falling “raindrop” columns for each entry.
+    - Streams pause when focused, marked, or included in a visual selection.
+    - `h` / `l` move left/right across streams.
+    - `j` drills into the focused directory (or opens the file).
+    - `k` returns to the parent directory.
+    - `Ctrl+H` / `Ctrl+L` page left/right (jump selection).
+  - **List Mode**: classic Vim-like list.
+    - `j` / `k` move down/up.
+    - `h` goes to the parent directory.
+    - `l` enters directories or opens files.
+    - `Ctrl+J` / `Ctrl+K` jump roughly 10% down/up the list.
+  - `Enter` toggles between Matrix and list views at any time.
+- **Leader Commands (press `,` first)**
   - `,j` / `,k` — Jump to bottom/top instantly
   - `,sa` / `,sma` / `,smd` — Sorting shortcuts
   - `,nf` — Create new file (no open)
@@ -77,6 +82,7 @@ python main.py
   - `,rn` — Rename selected item
   - `,cp` — Copy `cd` command for current path to system clipboard
   - `,cl` — Clear clipboard contents
+  - `,cm` — Clear all marks
 - **Powerful Filtering** (glob-style):
   - `/` — Enter filter mode
     - Type pattern (e.g., `rat`, `*.py`, `*test*`)
@@ -93,7 +99,8 @@ python main.py
   - `p` — Paste the clipboard into the selected directory (or next to the selected file)
 - **Visual Mode**:
   - `v` — Enter visual mode anchored at the current row; press `v` again to add the highlighted range to your marks (supports multiple ranges)
-  - `j` / `k` — Extend or shrink the selection while in visual mode
+  - `j` / `k` — Extend or shrink the selection while in visual mode (list view)
+  - Matrix view freezes any streams included in the active visual selection
   - `Esc` — Exit visual mode without adding the selection
 - **File Opening**:
   - Text files (`.py`, `.txt`, `.md`, etc.) → opened in **Vim**
@@ -116,16 +123,26 @@ modal file browser without leaving the terminal.
 
 ## Usage
 
-### Navigation
+### Switching views
 
-- j/k: Up/down.
-- h: Parent dir.
-- l/Enter: Enter dir or open file in Vim.
-- /: Search (type to filter, Enter to open).
-- Ctrl+J / Ctrl+K: Jump down/up quickly.
-- e: Expand/collapse selected directory inline.
-- Ctrl+H / Ctrl+L: Jump backward/forward through directory history.
-- Esc: Collapse all expansions and return to `~`.
+- `Enter`: Toggle between Matrix (default) and list mode. (Note: use `l` to enter directories; `Enter` no longer opens files.)
+
+### Navigation (Matrix mode)
+
+- `h` / `l`: Move left/right across streams.
+- `j`: Enter the focused directory or open the focused file.
+- `k`: Return to the parent directory.
+- `Ctrl+H` / `Ctrl+L`: Page across streams (10% jump).
+
+### Navigation (List mode)
+
+- `j` / `k`: Move down/up.
+- `h`: Parent dir.
+- `l`: Enter dir or open file.
+- `Ctrl+J` / `Ctrl+K`: Jump down/up quickly.
+- `e`: Expand/collapse selected directory inline.
+- `Ctrl+H` / `Ctrl+L`: Jump backward/forward through directory history.
+- `Esc`: Collapse all expansions and return to `~`.
 
 ### File Operations
 
@@ -137,7 +154,8 @@ modal file browser without leaving the terminal.
 ### Visual Mode
 
 - v: Enter visual mode at the cursor. Press v again to append the highlighted range to the marked set (repeat for multiple ranges).
-- j / k: Extend or shrink the active visual selection.
+- j / k: Extend or shrink the active visual selection when you are in list mode.
+- Matrix mode automatically freezes any streams included in the current visual selection (and the focused stream) so they stay in view.
 - Esc: Exit visual mode without adding the current range.
 
 ### Command Mode (`i`)
@@ -161,6 +179,7 @@ modal file browser without leaving the terminal.
 - ,rn: Rename the currently selected item.
 - ,cp: Copy a `cd` command for the current directory to the system clipboard.
 - ,cl: Clear the multi-item clipboard buffer.
+- ,cm: Clear all marks.
 
 ---
 
