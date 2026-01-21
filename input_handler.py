@@ -803,9 +803,6 @@ class InputHandler:
             parent = os.path.dirname(selected_path)
             if parent:
                 return parent
-        parent = os.path.dirname(self.nav.dir_manager.current_path)
-        if parent:
-            return parent
         return self.nav.dir_manager.current_path
 
     def _get_unique_name(self, dest_dir: str, base_name: str) -> str:

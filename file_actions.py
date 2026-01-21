@@ -291,6 +291,11 @@ class FileActionService:
                 stdscr.clrtoeol()
                 stdscr.refresh()
                 stdscr.getch()
+            return
+
+        self.nav.dir_manager.refresh_cache(base_dir)
+        self.nav.need_redraw = True
+        self.nav.status_message = f"Created directory: {unique_name}"
 
     def rename_selected(self):
         stdscr_opt = self.nav.renderer.stdscr

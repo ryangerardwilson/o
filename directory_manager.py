@@ -1,6 +1,7 @@
 # ~/Apps/vios/directory_manager.py
 import os
 import fnmatch
+from typing import Optional, Dict, List, Tuple
 
 
 class DirectoryManager:
@@ -10,6 +11,7 @@ class DirectoryManager:
         self.show_hidden = False  # Default: hide dotfiles/dotdirs
         self.sort_mode = "alpha"
         self.sort_map = {}
+        self._cache: Dict[str, List[Tuple[str, bool]]] = {}
 
         # Keep home_path for pretty_path only
         self.home_path = os.path.realpath(os.path.expanduser("~"))
@@ -36,7 +38,13 @@ class DirectoryManager:
         return " .dot" if self.show_hidden else ""
 
     def get_items(self):
-        return self.list_directory(self.current_path)
+        real_path = os.path.realpath(self.current_path)
+        cached = self._cache.get(real_path)
+        if cached is not None:
+            return cached[:]
+        items = self.list_directory(self.current_path)
+        self._cache[real_path] = items[:]
+        return items
 
     def list_directory(self, target_path: str):
         try:
@@ -73,6 +81,8 @@ class DirectoryManager:
                 key=self._mtime_sort_key_factory(target_path), reverse=reverse
             )
 
+        real_path = os.path.realpath(target_path)
+        self._cache[real_path] = visible_items[:]
         return visible_items
 
     def _normalize_pattern(self, pattern: str) -> str:
@@ -119,6 +129,14 @@ class DirectoryManager:
             return
         real_path = os.path.realpath(path)
         self.sort_map[real_path] = mode
+        self._cache.pop(real_path, None)
+
+    def refresh_cache(self, path: Optional[str] = None):
+        if path:
+            real = os.path.realpath(path)
+            self._cache.pop(real, None)
+        else:
+            self._cache.clear()
 
     def _alpha_sort_key(self, entry):
         name, is_dir = entry
