@@ -25,7 +25,7 @@ class FileNavigator:
         self.browser_selected = 0
         self.list_offset = 0
         self.need_redraw = True
-        self.layout_mode = "list"
+        self.layout_mode = "matrix"
 
         # Multi-mark support — now using full absolute paths
         self.marked_items = set()  # set of str (absolute paths)

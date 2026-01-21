@@ -315,8 +315,22 @@ class UIRenderer:
         if total > 0:
             self.nav.browser_selected = selected_index
 
+        visual_indices: list[int] = []
+        if getattr(self.nav, "visual_mode", False):
+            visual_indices = getattr(self.nav, "get_visual_indices", lambda _t: [])(total)
+
+        paused_indices = set(visual_indices)
+        paused_indices.add(selected_index)
+
+        if self.nav.marked_items:
+            index_by_path = {items[idx][2]: idx for idx in range(total)}
+            for marked_path in self.nav.marked_items:
+                idx = index_by_path.get(marked_path)
+                if idx is not None:
+                    paused_indices.add(idx)
+
         for stream in state.streams:
-            if stream.index == selected_index:
+            if stream.index in paused_indices:
                 continue
             stream.head = (stream.head + stream.velocity * delta) % matrix_height
 
@@ -353,7 +367,11 @@ class UIRenderer:
                 pass
 
         selection_indicator = f"  [{selected_index + 1}/{total}]"
-        status = self._compose_status(mode_indicator="[Matrix]", scroll_indicator=selection_indicator)
+        status = self._compose_status(
+            mode_indicator="[Matrix]",
+            scroll_indicator=selection_indicator,
+            visual_count=len(visual_indices) if getattr(self.nav, "visual_mode", False) else 0,
+        )
         self._render_status_bar(stdscr, status, max_y, max_x)
 
     def _compute_columns(self, count: int, max_x: int) -> list[int]:
