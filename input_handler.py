@@ -109,6 +109,7 @@ class InputHandler:
             self.nav.browser_selected = 0
             return
         self.nav.browser_selected = max(0, min(index, total - 1))
+        self.nav.update_visual_active(self.nav.browser_selected)
 
     def _jump_to_scope_edge(self, direction: str, scope_range, total: int):
         if scope_range:
@@ -121,6 +122,7 @@ class InputHandler:
             ):
                 target = start if direction == "up" else end
                 self.nav.browser_selected = target
+                self.nav.update_visual_active(self.nav.browser_selected)
                 return
         if direction == "up":
             self._set_browser_selected(0)
@@ -258,6 +260,7 @@ class InputHandler:
 
         # === FILTER MODE ===
         if key == ord("/"):
+            self.nav.exit_visual_mode()
             if self.in_filter_mode:
                 self.in_filter_mode = False
                 self.nav.dir_manager.filter_pattern = ""
@@ -269,6 +272,7 @@ class InputHandler:
             return False
 
         if key == 18:  # Ctrl+R
+            self.nav.exit_visual_mode()
             self.in_filter_mode = False
             self.nav.dir_manager.filter_pattern = ""
             self.nav.expanded_nodes.clear()
@@ -302,6 +306,10 @@ class InputHandler:
                 return False
 
         if key == 27:  # Esc outside filter mode
+            if getattr(self.nav, "visual_mode", False):
+                self.nav.exit_visual_mode()
+                self.last_escape_time = 0.0
+                return False
             now = time.time()
             is_double = (now - self.last_escape_time) <= self.escape_double_threshold
             self.last_escape_time = 0.0 if is_double else now
@@ -361,6 +369,7 @@ class InputHandler:
                 return False
 
         if key == 8:  # Ctrl+H
+            self.nav.exit_visual_mode()
             if self.nav.go_history_back():
                 self.in_filter_mode = False
                 self.nav.dir_manager.filter_pattern = ""
@@ -369,6 +378,7 @@ class InputHandler:
             return False
 
         if key == 12:  # Ctrl+L
+            self.nav.exit_visual_mode()
             if self.nav.go_history_forward():
                 self.in_filter_mode = False
                 self.nav.dir_manager.filter_pattern = ""
@@ -378,6 +388,7 @@ class InputHandler:
 
         # === Toggle mark with 'm' — now using full path ===
         if key == ord("m"):
+            self.nav.exit_visual_mode()
             if total > 0:
                 full_path = selected_path
                 if full_path in self.nav.marked_items:
@@ -388,9 +399,15 @@ class InputHandler:
                 self.nav.browser_selected = (self.nav.browser_selected + 1) % total
             return False
 
-        # === CREATE NEW FILE with 'v' ===
+        # === VISUAL MODE TOGGLE ===
         if key == ord("v"):
-            self.nav.create_new_file()
+            if total > 0:
+                if getattr(self.nav, "visual_mode", False):
+                    self.nav.reanchor_visual_mode(self.nav.browser_selected)
+                else:
+                    self.nav.enter_visual_mode(self.nav.browser_selected)
+            else:
+                self.nav.exit_visual_mode()
             return False
 
         # === Other single-key commands ===
@@ -400,6 +417,7 @@ class InputHandler:
             return False
 
         if key == ord("."):
+            self.nav.exit_visual_mode()
             self.nav.dir_manager.toggle_hidden()
             self.nav.expanded_nodes.clear()
             return False
@@ -409,6 +427,7 @@ class InputHandler:
             return False
 
         if key == ord("e") and total > 0 and selected_is_dir and selected_path:
+            self.nav.exit_visual_mode()
             if selected_path in self.nav.expanded_nodes:
                 self.nav.collapse_branch(selected_path)
                 self.nav.status_message = f"Collapsed {selected_name}"
@@ -438,6 +457,32 @@ class InputHandler:
                 self._flash()
             return False
 
+        if key == ord("x"):
+            if getattr(self.nav, "visual_mode", False):
+                entries = self._collect_visual_entries(display_items)
+                if not entries:
+                    self.nav.exit_visual_mode()
+                    return False
+                success = True
+                for path, _, is_dir_entry in entries:
+                    try:
+                        if is_dir_entry:
+                            shutil.rmtree(path)
+                        else:
+                            os.remove(path)
+                    except Exception:
+                        success = False
+                        break
+                if success:
+                    count = len(entries)
+                    noun = "item" if count == 1 else "items"
+                    self.nav.status_message = f"Deleted {count} {noun}"
+                    self.nav.exit_visual_mode()
+                else:
+                    self._flash()
+                self.nav.need_redraw = True
+                return False
+
         if key == ord("x") and total > 0 and selected_path:
             try:
                 if selected_is_dir:
@@ -454,7 +499,10 @@ class InputHandler:
         # === yy / dd operators ===
         if self.pending_operator == "d" and key == ord("d"):
             handled = False
-            if self.nav.marked_items:
+            if getattr(self.nav, "visual_mode", False):
+                entries = self._collect_visual_entries(display_items)
+                handled = self._stage_visual_to_clipboard(entries, cut=True)
+            elif self.nav.marked_items:
                 handled = self._stage_marked_to_clipboard(cut=True)
             elif total > 0:
                 try:
@@ -470,7 +518,10 @@ class InputHandler:
 
         if self.pending_operator == "y" and key == ord("y"):
             handled = False
-            if self.nav.marked_items:
+            if getattr(self.nav, "visual_mode", False):
+                entries = self._collect_visual_entries(display_items)
+                handled = self._stage_visual_to_clipboard(entries, cut=False)
+            elif self.nav.marked_items:
                 handled = self._stage_marked_to_clipboard(cut=False)
             elif total > 0:
                 try:
@@ -500,27 +551,33 @@ class InputHandler:
         # === Navigation ===
         if key in (curses.KEY_UP, ord("k")) and total > 0:
             self.nav.browser_selected = (self.nav.browser_selected - 1) % total
+            self.nav.update_visual_active(self.nav.browser_selected)
         elif key in (curses.KEY_DOWN, ord("j")) and total > 0:
             self.nav.browser_selected = (self.nav.browser_selected + 1) % total
+            self.nav.update_visual_active(self.nav.browser_selected)
         elif key in (curses.KEY_SR, 11):  # Ctrl+K
             jump = max(1, total // 10) if total > 0 else 0
             self.nav.browser_selected = max(0, self.nav.browser_selected - jump)
+            self.nav.update_visual_active(self.nav.browser_selected)
         elif key in (curses.KEY_SF, 10):  # Ctrl+J
             jump = max(1, total // 10) if total > 0 else 0
             self.nav.browser_selected = (
                 min(total - 1, self.nav.browser_selected + jump) if total > 0 else 0
             )
+            self.nav.update_visual_active(self.nav.browser_selected)
         elif key in (curses.KEY_LEFT, ord("h")):
             parent = os.path.dirname(self.nav.dir_manager.current_path)
             if parent != self.nav.dir_manager.current_path:
                 if self.nav.change_directory(parent):
                     self.in_filter_mode = False
                     self.nav.dir_manager.filter_pattern = ""
+                    self.nav.exit_visual_mode()
         elif key in (curses.KEY_RIGHT, ord("l"), 10, 13) and total > 0:
             if selected_is_dir:
                 if self.nav.change_directory(selected_path):
                     self.in_filter_mode = False
                     self.nav.dir_manager.filter_pattern = ""
+                    self.nav.exit_visual_mode()
             else:
                 self.nav.open_file(selected_path)
 
@@ -528,9 +585,11 @@ class InputHandler:
 
     # === Updated multi-mark operations using full paths ===
     def _copy_marked(self, dest_dir):
+        self.nav.exit_visual_mode()
         self._move_or_copy_marked(dest_dir, copy_only=True)
 
     def _delete_marked(self):
+        self.nav.exit_visual_mode()
         if not self.nav.marked_items:
             self._flash()
             return
@@ -554,6 +613,7 @@ class InputHandler:
         self.nav.need_redraw = True
 
     def _move_or_copy_marked(self, dest_dir, copy_only: bool):
+        self.nav.exit_visual_mode()
         if not self.nav.marked_items:
             self._flash()
             return
@@ -597,6 +657,7 @@ class InputHandler:
         self.nav.need_redraw = True
 
     def _stage_marked_to_clipboard(self, cut: bool) -> bool:
+        self.nav.exit_visual_mode()
         if not self.nav.marked_items:
             return False
 
@@ -645,3 +706,30 @@ class InputHandler:
             if not os.path.exists(os.path.join(dest_dir, new_name)):
                 return new_name
             counter += 1
+
+    def _collect_visual_entries(self, items):
+        if not getattr(self.nav, "visual_mode", False):
+            return []
+        indices = self.nav.get_visual_indices(len(items))
+        entries = []
+        for idx in indices:
+            if 0 <= idx < len(items):
+                name, is_dir, path, _ = items[idx]
+                entries.append((path, name, is_dir))
+        return entries
+
+    def _stage_visual_to_clipboard(self, entries, cut: bool) -> bool:
+        if not entries:
+            return False
+        try:
+            self.nav.clipboard.yank_multiple(entries, cut=cut)
+        except Exception:
+            self._flash()
+            return False
+
+        count = len(entries)
+        action = "Cut" if cut else "Yanked"
+        noun = "item" if count == 1 else "items"
+        self.nav.status_message = f"{action} {count} {noun} to clipboard"
+        self.nav.exit_visual_mode()
+        return True

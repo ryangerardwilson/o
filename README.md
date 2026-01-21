@@ -91,8 +91,10 @@ python main.py
   - `Backspace` / `Delete` — Immediate cut (delete without yank)
   - `x` — Delete all marked items or the current selection immediately (bypasses clipboard)
   - `p` — Paste the clipboard into the selected directory (or next to the selected file)
-- **File Creation**:
-  - `v` — Create new empty file (prompts for filename at bottom)
+- **Visual Mode**:
+  - `v` — Enter visual mode anchored at the current row (press again to re-anchor)
+  - `j` / `k` — Extend or shrink the selection while in visual mode
+  - `Esc` — Exit visual mode
 - **File Opening**:
   - Text files (`.py`, `.txt`, `.md`, etc.) → opened in **Vim**
   - PDF files → opened in **Zathura** (if available)
@@ -131,6 +133,12 @@ modal file browser without leaving the terminal.
 - dd: Cut.
 - Backspace: Delete.
 - p: Paste into the selected directory (or alongside the selected file).
+
+### Visual Mode
+
+- v: Enter visual mode (press v again to re-anchor at the cursor).
+- j / k: Extend or shrink the selection.
+- Esc: Exit visual mode.
 
 ### Command Mode (`i`)
 

@@ -50,6 +50,10 @@ class DummyNavigator:
         self.cheatsheet = ""
         self.bookmarks = []
         self.bookmark_index = -1
+        self.marked_items = set()
+        self.visual_mode = False
+        self.visual_anchor_index = None
+        self.visual_active_index = None
 
     def build_display_items(self):
         return list(self.display_items)
@@ -113,6 +117,39 @@ class DummyNavigator:
         self.bookmark_index += 1
         self.dir_manager.current_path = self.bookmarks[self.bookmark_index]
         return True
+
+    def enter_visual_mode(self, index):
+        self.visual_mode = True
+        self.visual_anchor_index = index
+        self.visual_active_index = index
+
+    def reanchor_visual_mode(self, index):
+        self.enter_visual_mode(index)
+
+    def exit_visual_mode(self):
+        self.visual_mode = False
+        self.visual_anchor_index = None
+        self.visual_active_index = None
+
+    def update_visual_active(self, index):
+        if not self.visual_mode:
+            return
+        self.visual_active_index = index
+
+    def get_visual_indices(self, total):
+        if (
+            not self.visual_mode
+            or self.visual_anchor_index is None
+            or self.visual_active_index is None
+        ):
+            return []
+        start = min(self.visual_anchor_index, self.visual_active_index)
+        end = max(self.visual_anchor_index, self.visual_active_index)
+        start = max(0, min(start, total - 1)) if total else 0
+        end = max(0, min(end, total - 1)) if total else 0
+        if total <= 0:
+            return []
+        return list(range(start, end + 1))
 
 
 def test_scope_detection_for_nested_selection():
@@ -420,3 +457,28 @@ def test_bookmark_command_ignores_expanded_context(tmp_path):
     assert nav.bookmarks == expected
     assert nav.bookmark_index == 0
     assert "Bookmarked" in nav.status_message
+
+
+def test_visual_mode_enter_move_and_exit():
+    items = [
+        ("a.txt", False, "/proj/a.txt", 0),
+        ("b.txt", False, "/proj/b.txt", 0),
+        ("c.txt", False, "/proj/c.txt", 0),
+    ]
+
+    nav = DummyNavigator(items, "/proj")
+    handler = InputHandler(nav)
+
+    assert not nav.visual_mode
+
+    handler.handle_key(None, ord("v"))
+    assert nav.visual_mode
+    assert nav.get_visual_indices(len(items)) == [0]
+
+    handler.handle_key(None, ord("j"))
+    assert nav.visual_mode
+    assert nav.browser_selected == 1
+    assert nav.get_visual_indices(len(items)) == [0, 1]
+
+    handler.handle_key(None, 27)  # Esc
+    assert not nav.visual_mode

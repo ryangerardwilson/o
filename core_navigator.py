@@ -40,6 +40,10 @@ class FileNavigator:
         self.bookmarks: List[str] = []
         self.bookmark_index = -1
 
+        self.visual_mode = False
+        self.visual_anchor_index: Optional[int] = None
+        self.visual_active_index: Optional[int] = None
+
     def open_file(self, filepath: str):
         self.file_actions.open_file(filepath)
 
@@ -199,6 +203,7 @@ class FileNavigator:
         return True
 
     def _set_current_path(self, new_path: str):
+        self.exit_visual_mode()
         self.dir_manager.current_path = new_path
         self.browser_selected = 0
         self.list_offset = 0
@@ -214,3 +219,55 @@ class FileNavigator:
         self.expanded_nodes.clear()
         self.dir_manager.filter_pattern = ""
         self.change_directory(home)
+
+    def enter_visual_mode(self, index: int):
+        items = self.build_display_items()
+        if not items:
+            return
+        total = len(items)
+        if index < 0 or index >= total:
+            index = max(0, min(index, total - 1))
+        self.visual_mode = True
+        self.visual_anchor_index = index
+        self.visual_active_index = index
+        self.need_redraw = True
+
+    def reanchor_visual_mode(self, index: int):
+        self.enter_visual_mode(index)
+
+    def exit_visual_mode(self):
+        if not self.visual_mode:
+            return
+        self.visual_mode = False
+        self.visual_anchor_index = None
+        self.visual_active_index = None
+        if self.status_message.startswith("-- VISUAL"):
+            self.status_message = ""
+        self.need_redraw = True
+
+    def update_visual_active(self, index: int):
+        if not self.visual_mode:
+            return
+        if self.visual_anchor_index is None:
+            self.visual_anchor_index = index
+        self.visual_active_index = index
+        self.need_redraw = True
+
+    def get_visual_indices(self, total: int) -> list[int]:
+        if (
+            not self.visual_mode
+            or self.visual_anchor_index is None
+            or self.visual_active_index is None
+        ):
+            return []
+        if total <= 0:
+            self.exit_visual_mode()
+            return []
+        anchor = self.visual_anchor_index
+        active = self.visual_active_index
+        if anchor < 0 or active < 0 or anchor >= total or active >= total:
+            self.exit_visual_mode()
+            return []
+        start = min(anchor, active)
+        end = max(anchor, active)
+        return list(range(start, end + 1))

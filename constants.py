@@ -31,8 +31,12 @@ Clipboard & Multi Operations
   m               Toggle mark on current item (✓) — auto-advance
   p               Paste clipboard into selected directory (or alongside selected file)
 
+Visual Mode
+   v               Enter visual selection starting at cursor (re-anchors if active)
+   j / k           Extend/shrink selection while in visual mode
+   Esc             Exit visual mode
+
 Other
-  v               Create new file and open in Vim
   t               Open terminal in current directory
   .               Toggle show hidden files/dirs
   ?               Toggle this help

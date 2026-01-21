@@ -78,6 +78,12 @@ class UIRenderer:
 
         items = self.nav.build_display_items()
         total = len(items)
+        visual_indices = set()
+        visual_count = 0
+        if hasattr(self.nav, "get_visual_indices"):
+            indices = self.nav.get_visual_indices(total)
+            visual_indices = set(indices)
+            visual_count = len(visual_indices)
 
         if total > 0:
             if (
@@ -128,11 +134,14 @@ class UIRenderer:
                 else:
                     exp_symbol = "  "
 
-                color = (
+                base_color = (
                     curses.color_pair(1) | curses.A_BOLD
                     if global_idx == self.nav.browser_selected
                     else curses.color_pair(2)
                 )
+                color = base_color
+                if global_idx in visual_indices:
+                    color |= curses.A_REVERSE
                 suffix = "/" if is_dir else ""
                 indent = "  " * depth
                 line = f"{indent}{sel_block}{exp_symbol}{name}{suffix}"
@@ -172,9 +181,13 @@ class UIRenderer:
         mark_text = (
             f"  MARKED: {len(self.nav.marked_items)}" if self.nav.marked_items else ""
         )
+        visual_text = ""
+        if getattr(self.nav, "visual_mode", False) and visual_count:
+            noun = "item" if visual_count == 1 else "items"
+            visual_text = f"  -- VISUAL -- ({visual_count} {noun})"
         message_text = f"  {self.nav.status_message}" if self.nav.status_message else ""
 
-        status = f"{help_hint}{filter_text}{leader_text}{hidden_indicator}{scroll_indicator}{yank_text}{mark_text}{message_text}"
+        status = f"{help_hint}{filter_text}{leader_text}{hidden_indicator}{scroll_indicator}{yank_text}{mark_text}{visual_text}{message_text}"
 
         try:
             stdscr.move(max_y - 1, 0)
