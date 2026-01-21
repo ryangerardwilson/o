@@ -61,8 +61,8 @@ jobs:
               "$PYBIN" -m pip install --only-binary=:all: -r requirements.txt
               "$PYBIN" -m pip install --only-binary=:all: pyinstaller
               echo "__version__ = \"${VERSION}\"" > _version.py
-              "$PYBIN" -m PyInstaller --clean --onedir --name vios main.py
-              tar -C dist -czf vios-linux-x64.tar.gz vios
+              "$PYBIN" -m PyInstaller --clean --onedir --name o main.py
+              tar -C dist -czf o-linux-x64.tar.gz o
 
             '
 
@@ -71,6 +71,6 @@ jobs:
         with:
           tag_name: ${{ env.TAG }}
           files: |
-            vios-linux-x64.tar.gz
+            o-linux-x64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
