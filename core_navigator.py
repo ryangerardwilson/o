@@ -9,6 +9,7 @@ from ui_renderer import UIRenderer
 from input_handler import InputHandler
 from constants import Constants
 from file_actions import FileActionService
+from config import USER_CONFIG
 
 
 class FileNavigator:
@@ -25,7 +26,8 @@ class FileNavigator:
         self.browser_selected = 0
         self.list_offset = 0
         self.need_redraw = True
-        self.layout_mode = "matrix"
+        self.config = USER_CONFIG
+        self.layout_mode = "matrix" if self.config.matrix_mode else "list"
 
         # Multi-mark support — now using full absolute paths
         self.marked_items = set()  # set of str (absolute paths)

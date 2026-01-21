@@ -1,0 +1,7 @@
+{
+  "matrix_mode": true,
+  "handlers": {
+    "pdf_viewer": [["zathura"]],
+    "image_viewer": [["swayimg"]]
+  }
+}

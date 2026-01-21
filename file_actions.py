@@ -5,7 +5,9 @@ import shlex
 import shutil
 import subprocess
 import zipfile
-from typing import Optional, cast, Any
+from typing import Optional, cast, Any, List
+
+from config import DEFAULT_HANDLERS
 
 
 class FileActionService:
@@ -131,32 +133,79 @@ class FileActionService:
             if ext in (".csv", ".parquet"):
                 subprocess.call(["vixl", filepath])
             elif mime_type == "application/pdf":
-                subprocess.Popen(
-                    ["zathura", filepath],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    stdin=subprocess.DEVNULL,
-                    preexec_fn=os.setsid,
-                )
+                if not self._run_external_handlers(
+                    self.nav.config.get_handler_commands("pdf_viewer"), filepath, background=True
+                ):
+                    self._run_external_handlers(
+                        DEFAULT_HANDLERS.get("pdf_viewer", []), filepath, background=True
+                    )
             elif mime_type and mime_type.startswith("image/"):
-                subprocess.Popen(
-                    ["swayimg", filepath],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    stdin=subprocess.DEVNULL,
-                    preexec_fn=os.setsid,
-                )
+                if not self._run_external_handlers(
+                    self.nav.config.get_handler_commands("image_viewer"), filepath, background=True
+                ):
+                    self._run_external_handlers(
+                        DEFAULT_HANDLERS.get("image_viewer", []), filepath, background=True
+                    )
             else:
-                subprocess.call([
-                    "vim",
-                    "-c",
-                    f"cd {self.nav.dir_manager.current_path}",
-                    filepath,
-                ])
+                if not self._run_external_handlers(
+                    self.nav.config.get_handler_commands("editor"), filepath, background=False
+                ):
+                    subprocess.call([
+                        "vim",
+                        "-c",
+                        f"cd {self.nav.dir_manager.current_path}",
+                        filepath,
+                    ])
         except FileNotFoundError:
             pass
         finally:
             self.nav.need_redraw = True
+
+    def _run_external_handlers(
+        self,
+        handlers: List[List[str]],
+        filepath: str,
+        *,
+        background: bool,
+    ) -> bool:
+        if not handlers:
+            return False
+
+        for raw_cmd in handlers:
+            if not raw_cmd:
+                continue
+            tokens = []
+            for part in raw_cmd:
+                if not isinstance(part, str):
+                    continue
+                tokens.append(part.replace("{file}", filepath))
+            if not tokens:
+                continue
+            if "{file}" not in ''.join(raw_cmd):
+                tokens = tokens + [filepath]
+
+            cmd_name = tokens[0]
+            if shutil.which(cmd_name) is None:
+                continue
+
+            try:
+                if background:
+                    subprocess.Popen(
+                        tokens,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        stdin=subprocess.DEVNULL,
+                        preexec_fn=os.setsid,
+                    )
+                else:
+                    subprocess.call(tokens)
+                return True
+            except FileNotFoundError:
+                continue
+            except Exception:
+                continue
+
+        return False
 
     def create_new_file(self):
         filename = self._prompt_for_input("New file: ")

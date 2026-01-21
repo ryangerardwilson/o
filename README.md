@@ -194,3 +194,34 @@ modal file browser without leaving the terminal.
 ## License
 
 MIT License.
+
+---
+
+## Configuration
+
+`o` reads an optional XDG-compatible config file. Create
+`~/.config/o/config.json` (or `${XDG_CONFIG_HOME}/o/config.json`) to adjust the
+defaults. A starter `template_config.json` is included in the repository.
+
+Supported options:
+
+- `matrix_mode` — `true` / `false`. Controls whether Matrix view is the default
+  when the app launches.
+- `handlers` — map of external programs to launch for certain file types. Each
+  entry is an array of command arrays. Examples:
+  ```json
+  {
+    "handlers": {
+      "pdf_viewer": [["zathura"]],
+      "image_viewer": [["swayimg"]],
+      "editor": [["nvim", "-c", "cd {file}"], ["vim"]]
+    }
+  }
+  ```
+  - Each sub-array represents a command to try (with optional arguments). If a
+    command does **not** include `{file}`, the file path is appended.
+  - `pdf_viewer` and `image_viewer` control the viewers for PDFs and images.
+  - `editor` (optional) overrides the fallback editor used for other files.
+
+If a handler command cannot be found, `o` falls back to its built-in defaults
+(Zathura for PDFs, swayimg for images, Vim for everything else).
