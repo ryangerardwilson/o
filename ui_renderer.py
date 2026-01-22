@@ -187,7 +187,9 @@ class UIRenderer:
         def _render_compact() -> None:
             visible_rows = max(1, max_y - 1)
             max_scroll = max(0, total_lines - visible_rows)
-            scroll = max(0, min(getattr(self.nav, "command_popup_scroll", 0), max_scroll))
+            scroll = max(
+                0, min(getattr(self.nav, "command_popup_scroll", 0), max_scroll)
+            )
             self.nav.command_popup_scroll = scroll
             self.nav.command_popup_view_rows = visible_rows
             visible = lines[scroll : scroll + visible_rows]
@@ -260,7 +262,9 @@ class UIRenderer:
         self.nav.command_popup_view_rows = visible_rows
         visible = lines[scroll : scroll + visible_rows]
 
-        line_info = f"{scroll + 1}-{min(total_lines, scroll + visible_rows)}/{total_lines}"
+        line_info = (
+            f"{scroll + 1}-{min(total_lines, scroll + visible_rows)}/{total_lines}"
+        )
 
         header_width = max(0, width - 2)
         try:
@@ -291,6 +295,7 @@ class UIRenderer:
 
         footer = f"{header}  [{line_info}]  j/k scroll  ESC close"
         self._render_status_bar(stdscr, footer, max_y, max_x, bold=False)
+
     # ------------------------------------------------------------------
     # Help view
 

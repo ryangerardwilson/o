@@ -272,9 +272,7 @@ class FileActionService:
 
         return False
 
-    def _run_terminal_handlers(
-        self, handlers: List[List[str]], filepath: str
-    ) -> bool:
+    def _run_terminal_handlers(self, handlers: List[List[str]], filepath: str) -> bool:
         if not handlers:
             return False
 

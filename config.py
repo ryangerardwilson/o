@@ -278,9 +278,7 @@ def _normalize_browser_setup(
 
             url = raw_value.strip()
             if not url:
-                warnings.append(
-                    f"browser shortcut '{raw_key}' ignored (empty URL)"
-                )
+                warnings.append(f"browser shortcut '{raw_key}' ignored (empty URL)")
                 continue
 
             shortcuts[token] = url

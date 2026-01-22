@@ -552,9 +552,7 @@ class InputHandler:
 
         url = shortcuts.get(token)
         if not url:
-            self.nav.status_message = (
-                f"No browser shortcut configured for {command}"
-            )
+            self.nav.status_message = f"No browser shortcut configured for {command}"
             self.nav.need_redraw = True
             self._flash()
             return

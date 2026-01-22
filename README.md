@@ -294,8 +294,8 @@ Reference template:
 
 ### Example configuration explained
 
-Below is a sample configuration along with plain-language notes so you can adapt it
-to your own tools and directory structure:
+Below is a sample configuration along with plain-language notes so you can
+adapt it to your own tools and directory structure:
 
 ```json
 {

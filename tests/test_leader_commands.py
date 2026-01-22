@@ -173,7 +173,9 @@ class DummyNavigator:
     def enter_list_mode(self):
         self.layout_mode = "list"
 
-    def open_terminal(self, base_path: str | None = None, command: list[str] | None = None):
+    def open_terminal(
+        self, base_path: str | None = None, command: list[str] | None = None
+    ):
         cwd = (
             os.path.realpath(base_path)
             if base_path
@@ -937,9 +939,7 @@ def test_parquet_viewer_launches_in_terminal(tmp_path):
 
     class DummyNav:
         def __init__(self):
-            self.config = DummyConfig(
-                {"parquet_viewer": [["alacritty", "-e", "vixl"]]}
-            )
+            self.config = DummyConfig({"parquet_viewer": [["alacritty", "-e", "vixl"]]})
             self.renderer = SimpleNamespace(stdscr=None)
             self.status_message = ""
             self.need_redraw = False
@@ -1120,4 +1120,6 @@ def test_e_collapse_positions_cursor(tmp_path):
 
     assert nav.browser_selected == 0
     assert "collapsed" in nav.status_message.lower()
+
+
 from file_actions import FileActionService
