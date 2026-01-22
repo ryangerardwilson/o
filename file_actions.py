@@ -130,9 +130,18 @@ class FileActionService:
         handled = False
         is_text_like = False
         try:
-            if ext in (".csv", ".parquet"):
-                subprocess.call(["vixl", filepath])
-                handled = True
+            if ext == ".csv":
+                handled = self._run_external_handlers(
+                    self.nav.config.get_handler_commands("csv_viewer"),
+                    filepath,
+                    background=True,
+                )
+            elif ext == ".parquet":
+                handled = self._run_external_handlers(
+                    self.nav.config.get_handler_commands("parquet_viewer"),
+                    filepath,
+                    background=True,
+                )
             elif mime_type == "application/pdf":
                 handled = self._run_external_handlers(
                     self.nav.config.get_handler_commands("pdf_viewer"),

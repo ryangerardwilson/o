@@ -205,7 +205,7 @@ MIT License.
 
 `o` reads an optional XDG-compatible config file. Create
 `~/.config/o/config.json` (or `${XDG_CONFIG_HOME}/o/config.json`) to adjust the
-defaults. A starter `template_config.json` is included in the repository.
+defaults. A reference configuration is included below for convenience.
 
 Supported options:
 
@@ -218,6 +218,8 @@ Supported options:
     "handlers": {
       "pdf_viewer": [["zathura"]],
       "image_viewer": [["swayimg"]],
+      "csv_viewer": [["vixl"]],
+      "parquet_viewer": [["vixl"]],
       "editor": [["vim"]]
     }
   }
@@ -225,6 +227,8 @@ Supported options:
   - Each sub-array represents a command to try (with optional arguments). If a
     command does **not** include `{file}`, the file path is appended.
   - `pdf_viewer` and `image_viewer` control the viewers for PDFs and images.
+  - `csv_viewer` and `parquet_viewer` allow you to specify dedicated viewers for
+    CSV/Parquet data files.
   - `editor` (optional) overrides the fallback editor used for other files.
 - `file_shortcuts` — map custom tokens (lowercase alphanumeric) to specific files (absolute paths or with `~`).
   Trigger them with `,fo<token>` to open PDFs, images, or any file using your configured handlers (e.g. `,fo1`, `,fokr`).
@@ -241,34 +245,97 @@ Supported options:
 If a handler command or mapping is missing, `o` simply leaves the file
 unopened. Configure viewers/editors explicitly to control how files launch.
 
-Reference template (`template_config.json`):
+Reference template:
 
 ```json
 {
   "matrix_mode": false,
   "handlers": {
-    "pdf_viewer": [["zathura"]],
-    "image_viewer": [["swayimg"]]
+    "pdf_viewer": [["evince"]],
+    "image_viewer": [["feh"]],
+    "csv_viewer": [["libreoffice", "--calc"]],
+    "parquet_viewer": [["db-browser-for-sqlite"]]
   },
   "file_shortcuts": {
-    "1": "~/Documents/books/1611_king_james_the_holy_bible.pdf",
-    "2": "~/Bible.md",
-    "kr": "~/Documents/books/1988_kernighan_ritchie_the_c_programming_language.pdf"
+    "guide": "~/Documents/guides/getting-started.pdf",
+    "notes": "~/Documents/notes/meeting-notes.md",
+    "ref": "~/Documents/reference/api-cheatsheet.pdf"
   },
   "dir_shortcuts": {
-    "ga": "~/Apps/genie_allocation",
-    "gs": "~/Apps/genie_serviceability",
-    "r": "~/Apps/r"
+    "proj": "~/Projects/alpha",
+    "docs": "~/Documents",
+    "media": "~/Media"
   },
   "workspace_shortcuts": {
-    "1": {
-      "internal": "~/Bible.md",
-      "external": "~/Documents/books/1611_king_james_the_holy_bible.pdf"
+    "docs": {
+      "internal": "~/Documents",
+      "external": [["alacritty", "--working-directory", "~/Documents"]]
     },
-    "2": {
-      "internal": [["worship"]],
-      "external": [["vixl", "~/Documents/fitness/anchor.parquet"]]
+    "analysis": {
+      "internal": [["code", "~/Projects/alpha"]],
+      "external": [["libreoffice", "~/Documents/data/report.csv"]]
     }
   }
 }
 ```
+
+### Example configuration explained
+
+Below is a sample configuration along with plain-language notes so you can adapt it
+to your own tools and directory structure:
+
+```json
+{
+  "matrix_mode": true,
+  "handlers": {
+    "pdf_viewer": [["evince"]],
+    "image_viewer": [["feh"]],
+    "csv_viewer": [["libreoffice", "--calc"]],
+    "parquet_viewer": [["db-browser-for-sqlite"]]
+  },
+  "file_shortcuts": {
+    "guide": "~/Documents/guides/getting-started.pdf",
+    "notes": "~/Documents/notes/team-notes.md",
+    "ref": "~/Documents/reference/on-call-playbook.pdf"
+  },
+  "dir_shortcuts": {
+    "proj": "~/Projects/alpha",
+    "docs": "~/Documents",
+    "media": "~/Media"
+  },
+  "workspace_shortcuts": {
+    "docs": {
+      "internal": "~/Documents",
+      "external": [["alacritty", "--working-directory", "~/Documents"]]
+    },
+    "analysis": {
+      "internal": [["code", "~/Projects/alpha"]],
+      "external": [["libreoffice", "~/Documents/data/report.csv"]]
+    }
+  }
+}
+```
+
+- `matrix_mode: true` launches `o` in the animated Matrix layout. Set it to
+  `false` if you prefer the classic list by default.
+- `handlers` define which external programs open specific file types. Each
+  inner array is a command you could run in a shell. If the command doesn’t
+  contain `{file}`, the file path is appended automatically.
+  - `pdf_viewer`: opens PDFs with Evince.
+  - `image_viewer`: opens images in Feh.
+  - `csv_viewer`: sends CSV files to LibreOffice Calc.
+  - `parquet_viewer`: launches a Parquet-friendly tool (replace with whatever you
+    use).
+- `file_shortcuts` attach friendly names to frequently referenced files and can
+  be launched with `,fo<token>` (e.g. `,fonotes`).
+- `dir_shortcuts` map quick tokens to directories for navigation (` ,do proj`
+  jumps into `~/Projects/alpha`, `,to docs` opens a terminal there).
+- `workspace_shortcuts` bundle related actions:
+  - `docs` jumps inside `~/Documents` and opens a new terminal in the same
+    location.
+  - `analysis` runs a code editor pointed at your project and opens LibreOffice
+    with a dataset in a separate terminal. Each entry accepts either a direct
+    path or an array describing a command.
+
+Feel free to swap out the sample applications (Evince, Feh, LibreOffice, etc.)
+with whatever viewers and editors you have installed.
