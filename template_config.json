@@ -3,5 +3,11 @@
   "handlers": {
     "pdf_viewer": [["zathura"]],
     "image_viewer": [["swayimg"]]
+  },
+  "file_shortcuts": {
+    "notes": "~/Notes/daily_planner.pdf"
+  },
+  "dir_shortcuts": {
+    "ga": "~/Apps/genie_allocation"
   }
 }

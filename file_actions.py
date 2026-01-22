@@ -128,6 +128,7 @@ class FileActionService:
         _, ext = os.path.splitext(filepath)
 
         handled = False
+        is_text_like = False
         try:
             if ext in (".csv", ".parquet"):
                 subprocess.call(["vixl", filepath])
@@ -145,6 +146,26 @@ class FileActionService:
                     background=True,
                 )
             else:
+                is_text_like = bool(
+                    (mime_type and mime_type.startswith("text/"))
+                    or ext.lower()
+                    in {
+                        ".py",
+                        ".txt",
+                        ".md",
+                        ".json",
+                        ".yaml",
+                        ".yml",
+                        ".toml",
+                        ".cfg",
+                        ".ini",
+                        ".sh",
+                        ".c",
+                        ".cpp",
+                        ".h",
+                        ".hpp",
+                    }
+                )
                 handled = self._run_external_handlers(
                     self.nav.config.get_handler_commands("editor"),
                     filepath,
@@ -153,10 +174,51 @@ class FileActionService:
         except FileNotFoundError:
             pass
         finally:
+            if not handled and is_text_like:
+                handled = self._open_with_vim(filepath)
+
             if not handled:
                 self.nav.status_message = "No handler configured"
                 curses.flash()
             self.nav.need_redraw = True
+
+    def _open_with_vim(self, filepath: str) -> bool:
+        stdscr_opt = self.nav.renderer.stdscr
+        if stdscr_opt is not None:
+            try:
+                curses.def_prog_mode()
+            except curses.error:
+                pass
+            try:
+                curses.endwin()
+            except curses.error:
+                pass
+
+        try:
+            for cmd in ("nvim", "vim"):
+                if shutil.which(cmd):
+                    try:
+                        subprocess.call([cmd, filepath])
+                        return True
+                    except Exception:
+                        continue
+        finally:
+            if stdscr_opt is not None:
+                try:
+                    curses.reset_prog_mode()
+                except curses.error:
+                    pass
+                try:
+                    curses.curs_set(0)
+                except curses.error:
+                    pass
+                try:
+                    stdscr = cast(Any, stdscr_opt)
+                    stdscr.refresh()
+                except Exception:
+                    pass
+
+        return False
 
     def _run_external_handlers(
         self,
@@ -389,8 +451,8 @@ class FileActionService:
             f"Renamed to {unique_name}" if unique_name != selected_name else "Renamed"
         )
 
-    def open_terminal(self):
-        cwd = self.nav.dir_manager.current_path
+    def open_terminal(self, base_path: Optional[str] = None):
+        cwd = self._resolve_base_directory(base_path)
         commands = []
         term_env = os.environ.get("TERMINAL")
         if term_env:

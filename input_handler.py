@@ -100,6 +100,47 @@ class InputHandler:
             "cm": self._clear_marked_items,
         }
 
+        file_shortcuts = getattr(self.nav.config, "file_shortcuts", {}) or {}
+
+        def _file_handler(token: str, command_repr: str):
+            return lambda shortcut_token=token, command_display=command_repr: self._launch_file_shortcut(
+                shortcut_token, command_display
+            )
+
+        for token in sorted(file_shortcuts):
+            primary_key = f"fo{token}"
+            if primary_key not in command_map:
+                command_map[primary_key] = _file_handler(token, primary_key)
+
+            if (
+                token.startswith("f")
+                and len(token) == 2
+                and token[1].isdigit()
+                and token not in command_map
+            ):
+                command_map[token] = _file_handler(token, token)
+
+        dir_shortcuts = getattr(self.nav.config, "dir_shortcuts", {}) or {}
+        for token in sorted(dir_shortcuts):
+            for command_key, change_dir, open_term in (
+                (f"do{token}", True, False),
+                (f"to{token}", False, True),
+                (f"dto{token}", True, True),
+            ):
+                if command_key in command_map:
+                    continue
+                command_map[command_key] = (
+                    lambda shortcut_token=token,
+                    do_change=change_dir,
+                    launch_term=open_term,
+                    prefix=command_key: self._invoke_directory_shortcut(
+                        shortcut_token,
+                        change_dir=do_change,
+                        open_terminal=launch_term,
+                        command_prefix=prefix,
+                    )
+                )
+
         if command in command_map:
             command_map[command]()
             self._reset_comma()
@@ -241,6 +282,82 @@ class InputHandler:
         self.pending_comma = False
         self.comma_sequence = ""
         self.nav.leader_sequence = ""
+        self.nav.need_redraw = True
+
+    def _launch_file_shortcut(self, token: str, command_display: str) -> None:
+        shortcuts = getattr(self.nav.config, "file_shortcuts", {}) or {}
+        path = shortcuts.get(token)
+
+        if not path:
+            self.nav.status_message = (
+                f"No file shortcut configured for ,{command_display}"
+            )
+            self.nav.need_redraw = True
+            self._flash()
+            return
+
+        if not os.path.isfile(path):
+            self.nav.status_message = (
+                f"Shortcut ,{command_display} target missing: {os.path.basename(path) or path}"
+            )
+            self.nav.need_redraw = True
+            self._flash()
+            return
+
+        self.nav.open_file(path)
+        self.nav.need_redraw = True
+
+    def _invoke_directory_shortcut(
+        self,
+        token: str,
+        *,
+        change_dir: bool,
+        open_terminal: bool,
+        command_prefix: str,
+    ) -> None:
+        shortcuts = getattr(self.nav.config, "dir_shortcuts", {}) or {}
+        path = shortcuts.get(token)
+
+        command = f",{command_prefix}"
+        if not path:
+            self.nav.status_message = (
+                f"No directory shortcut configured for {command}"
+            )
+            self.nav.need_redraw = True
+            self._flash()
+            return
+
+        if not os.path.isdir(path):
+            pretty = os.path.basename(path.rstrip(os.sep)) or path
+            self.nav.status_message = (
+                f"Shortcut {command} missing directory: {pretty}"
+            )
+            self.nav.need_redraw = True
+            self._flash()
+            return
+
+        pretty = self.nav.dir_manager.pretty_path(path)
+        change_success = True
+
+        if change_dir:
+            change_success = self.nav.change_directory(path)
+            if not change_success:
+                self.nav.status_message = f"Failed to jump to {pretty}"
+                self.nav.need_redraw = True
+                self._flash()
+                return
+
+        if open_terminal:
+            base_path = path if not change_dir else None
+            self.nav.open_terminal(base_path)
+
+        if change_dir and open_terminal:
+            self.nav.status_message = f"Jumped to {pretty} and opened terminal"
+        elif change_dir:
+            self.nav.status_message = f"Jumped to {pretty}"
+        elif open_terminal:
+            self.nav.status_message = f"Opened terminal at {pretty}"
+
         self.nav.need_redraw = True
 
     def _handle_help_scroll(self, key, stdscr):

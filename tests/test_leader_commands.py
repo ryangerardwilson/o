@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -28,6 +29,10 @@ class DummyDirManager:
     def set_sort_mode_for_path(self, path: str, mode: str):
         self.sort_map[os.path.realpath(path)] = mode
 
+    @staticmethod
+    def pretty_path(path: str) -> str:
+        return os.path.realpath(path)
+
 
 class DummyNavigator:
     def __init__(self, display_items, current_path):
@@ -53,6 +58,11 @@ class DummyNavigator:
         self.visual_mode = False
         self.visual_anchor_index = None
         self.visual_active_index = None
+        self.config = SimpleNamespace(file_shortcuts={}, dir_shortcuts={})
+        self.opened_paths = []
+        self.changed_dirs = []
+        self.layout_mode = "list"
+        self.terminal_calls = []
 
     def build_display_items(self):
         return list(self.display_items)
@@ -117,10 +127,34 @@ class DummyNavigator:
         self.dir_manager.current_path = self.bookmarks[self.bookmark_index]
         return True
 
+    def open_file(self, path: str):
+        self.opened_paths.append(os.path.realpath(path))
+
+    def change_directory(self, path: str, *, record_history: bool = True):
+        real = os.path.realpath(path)
+        if not os.path.isdir(real):
+            return False
+        self.dir_manager.current_path = real
+        self.changed_dirs.append(real)
+        return True
+
+    def enter_matrix_mode(self):
+        self.layout_mode = "matrix"
+
+    def enter_list_mode(self):
+        self.layout_mode = "list"
+
+    def open_terminal(self, base_path: str | None = None):
+        if base_path:
+            self.terminal_calls.append(os.path.realpath(base_path))
+        else:
+            self.terminal_calls.append(os.path.realpath(self.dir_manager.current_path))
+
     def enter_visual_mode(self, index):
         self.visual_mode = True
         self.visual_anchor_index = index
         self.visual_active_index = index
+        self._apply_visual_marks()
 
     def reanchor_visual_mode(self, index):
         self.enter_visual_mode(index)
@@ -134,6 +168,7 @@ class DummyNavigator:
         if not self.visual_mode:
             return
         self.visual_active_index = index
+        self._apply_visual_marks()
 
     def get_visual_indices(self, total):
         if (
@@ -149,6 +184,16 @@ class DummyNavigator:
         if total <= 0:
             return []
         return list(range(start, end + 1))
+
+    def _apply_visual_marks(self):
+        if not self.visual_mode:
+            return
+        total = len(self.display_items)
+        indices = self.get_visual_indices(total)
+        for idx in indices:
+            if 0 <= idx < total:
+                path = self.display_items[idx][2]
+                self.marked_items.add(path)
 
 
 def test_scope_detection_for_nested_selection():
@@ -362,6 +407,8 @@ def test_bookmark_command_adds_current_path(tmp_path):
     nav = FileNavigator(str(root))
     handler = nav.input_handler
 
+    nav.enter_list_mode()
+
     nav.change_directory(str(sub))
     handler.handle_key(None, ord(","))
     handler.handle_key(None, ord("b"))
@@ -388,6 +435,8 @@ def test_ctrl_navigation_uses_bookmarks(tmp_path):
 
     nav = FileNavigator(str(root))
     handler = nav.input_handler
+
+    nav.enter_list_mode()
 
     nav.add_bookmark(str(root))
     nav.change_directory(str(sub_a))
@@ -491,3 +540,192 @@ def test_visual_mode_enter_move_and_exit():
     handler.handle_key(None, ord("v"))  # Commit second selection
     assert not nav.visual_mode
     assert "/proj/c.txt" in nav.marked_items
+
+
+def test_file_shortcut_opens_file(tmp_path):
+    target_file = tmp_path / "doc.pdf"
+    target_file.write_text("data")
+
+    nav = DummyNavigator([], str(tmp_path))
+    nav.config.file_shortcuts = {"notes": os.path.realpath(str(target_file))}
+    handler = InputHandler(nav)
+
+    handler.pending_comma = True
+    handler.comma_sequence = ""
+    handler._handle_comma_command(
+        ord("f"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    assert handler.pending_comma
+
+    handler._handle_comma_command(
+        ord("o"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("n"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("o"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("t"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("e"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("s"), 0, None, None, None, nav.dir_manager.current_path
+    )
+
+    assert nav.opened_paths == [os.path.realpath(str(target_file))]
+    assert not handler.pending_comma
+
+
+def test_file_shortcut_missing_file(tmp_path):
+    missing_file = tmp_path / "missing.pdf"
+
+    nav = DummyNavigator([], str(tmp_path))
+    nav.config.file_shortcuts = {"draft": os.path.realpath(str(missing_file))}
+    handler = InputHandler(nav)
+
+    handler.pending_comma = True
+    handler.comma_sequence = ""
+    handler._handle_comma_command(
+        ord("f"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("o"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("d"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("r"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("a"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("f"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("t"), 0, None, None, None, nav.dir_manager.current_path
+    )
+
+    assert nav.opened_paths == []
+    assert "missing" in nav.status_message.lower()
+    assert not handler.pending_comma
+
+
+def test_directory_shortcut_changes_directory(tmp_path):
+    target_dir = tmp_path / "genie_allocation"
+    target_dir.mkdir()
+
+    nav = DummyNavigator([], str(tmp_path))
+    nav.config.dir_shortcuts = {"ga": os.path.realpath(str(target_dir))}
+    handler = InputHandler(nav)
+
+    handler.pending_comma = True
+    handler.comma_sequence = ""
+    handler._handle_comma_command(
+        ord("d"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("o"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("g"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("a"), 0, None, None, None, nav.dir_manager.current_path
+    )
+
+    assert nav.changed_dirs == [os.path.realpath(str(target_dir))]
+    assert nav.dir_manager.current_path == os.path.realpath(str(target_dir))
+    assert "jumped" in nav.status_message.lower()
+
+
+def test_directory_shortcut_missing_directory(tmp_path):
+    missing_dir = tmp_path / "missing"
+
+    nav = DummyNavigator([], str(tmp_path))
+    nav.config.dir_shortcuts = {"md": os.path.realpath(str(missing_dir))}
+    handler = InputHandler(nav)
+
+    handler.pending_comma = True
+    handler.comma_sequence = ""
+    handler._handle_comma_command(
+        ord("d"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("o"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("m"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("d"), 0, None, None, None, nav.dir_manager.current_path
+    )
+
+    assert nav.changed_dirs == []
+    assert "missing" in nav.status_message.lower()
+    assert not handler.pending_comma
+
+
+def test_directory_shortcut_opens_terminal_without_nav_change(tmp_path):
+    target_dir = tmp_path / "project"
+    target_dir.mkdir()
+
+    nav = DummyNavigator([], str(tmp_path))
+    nav.config.dir_shortcuts = {"pr": os.path.realpath(str(target_dir))}
+    handler = InputHandler(nav)
+
+    handler.pending_comma = True
+    handler.comma_sequence = ""
+    handler._handle_comma_command(
+        ord("t"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("o"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("p"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("r"), 0, None, None, None, nav.dir_manager.current_path
+    )
+
+    assert nav.dir_manager.current_path == os.path.realpath(str(tmp_path))
+    assert nav.terminal_calls == [os.path.realpath(str(target_dir))]
+    assert "terminal" in nav.status_message.lower()
+
+
+def test_directory_shortcut_change_and_terminal(tmp_path):
+    target_dir = tmp_path / "work"
+    target_dir.mkdir()
+
+    nav = DummyNavigator([], str(tmp_path))
+    nav.config.dir_shortcuts = {"wk": os.path.realpath(str(target_dir))}
+    handler = InputHandler(nav)
+
+    handler.pending_comma = True
+    handler.comma_sequence = ""
+    handler._handle_comma_command(
+        ord("d"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("t"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("o"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("w"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("k"), 0, None, None, None, nav.dir_manager.current_path
+    )
+
+    assert nav.dir_manager.current_path == os.path.realpath(str(target_dir))
+    assert nav.changed_dirs[-1] == os.path.realpath(str(target_dir))
+    assert nav.terminal_calls == [os.path.realpath(str(target_dir))]
+    assert "terminal" in nav.status_message.lower()

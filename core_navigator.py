@@ -49,6 +49,9 @@ class FileNavigator:
         self.matrix_state = None
         self.matrix_return_map: dict[str, int] = {}
 
+        if self.config.warnings and not self.status_message:
+            self.status_message = self.config.warnings[0]
+
     def open_file(self, filepath: str):
         self.file_actions.open_file(filepath)
 
@@ -77,8 +80,8 @@ class FileNavigator:
     def create_new_file(self):
         self.file_actions.create_new_file()
 
-    def open_terminal(self):
-        self.file_actions.open_terminal()
+    def open_terminal(self, base_path: Optional[str] = None):
+        self.file_actions.open_terminal(base_path)
 
     def create_new_file_no_open(self, base_path: Optional[str] = None):
         self.file_actions.create_new_file_no_open(base_path)

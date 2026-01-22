@@ -2,13 +2,16 @@ import json
 import os
 import shlex
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 
 @dataclass
 class UserConfig:
     matrix_mode: bool = False
     handlers: Dict[str, List[List[str]]] = field(default_factory=dict)
+    file_shortcuts: Dict[str, str] = field(default_factory=dict)
+    dir_shortcuts: Dict[str, str] = field(default_factory=dict)
+    warnings: List[str] = field(default_factory=list)
 
     def get_handler_commands(self, name: str) -> List[List[str]]:
         return self.handlers.get(name, [])
@@ -54,6 +57,93 @@ def _normalize_handlers(raw_handlers) -> Dict[str, List[List[str]]]:
     return handlers
 
 
+def _normalize_path(value: str) -> str:
+    if not isinstance(value, str):
+        return ""
+    expanded = os.path.expanduser(value.strip())
+    if not expanded:
+        return ""
+    return os.path.realpath(expanded)
+
+
+def _normalize_file_shortcuts(raw_shortcuts) -> Tuple[Dict[str, str], List[str]]:
+    shortcuts: Dict[str, str] = {}
+    warnings: List[str] = []
+
+    if not isinstance(raw_shortcuts, dict):
+        return shortcuts, warnings
+
+    for raw_key, raw_value in raw_shortcuts.items():
+        if not isinstance(raw_key, str):
+            warnings.append("file_shortcuts key ignored (not a string)")
+            continue
+
+        token = raw_key.strip().lower()
+        if not token:
+            warnings.append("file_shortcuts entry ignored (empty key)")
+            continue
+
+        if not token.isalnum():
+            warnings.append(
+                f"file_shortcuts key '{raw_key}' ignored (use alphanumeric tokens)"
+            )
+            continue
+
+        path = _normalize_path(raw_value)
+        if not path:
+            warnings.append(f"file_shortcuts '{raw_key}' ignored (empty path)")
+            continue
+
+        if not os.path.isfile(path):
+            warnings.append(
+                f"file_shortcuts '{raw_key}' ignored ({path} is not an existing file)"
+            )
+            continue
+
+        shortcuts[token] = path
+
+    return shortcuts, warnings
+
+
+def _normalize_dir_shortcuts(raw_shortcuts) -> Tuple[Dict[str, str], List[str]]:
+    shortcuts: Dict[str, str] = {}
+    warnings: List[str] = []
+
+    if not isinstance(raw_shortcuts, dict):
+        return shortcuts, warnings
+
+    for raw_key, raw_value in raw_shortcuts.items():
+        if not isinstance(raw_key, str):
+            warnings.append("dir_shortcuts key ignored (not a string)")
+            continue
+
+        token = raw_key.strip().lower()
+        if not token:
+            warnings.append("dir_shortcuts entry ignored (empty key)")
+            continue
+
+        if not token.isalnum():
+            warnings.append(
+                f"dir_shortcuts key '{raw_key}' ignored (use alphanumeric tokens)"
+            )
+            continue
+
+        path = _normalize_path(raw_value)
+        if not path:
+            warnings.append(f"dir_shortcuts '{raw_key}' ignored (empty path)")
+            continue
+
+        if not os.path.isdir(path):
+            warnings.append(
+                f"dir_shortcuts '{raw_key}' ignored ({path} is not an existing directory)"
+            )
+            continue
+
+        shortcuts[token] = path
+
+    return shortcuts, warnings
+
+
 def load_user_config() -> UserConfig:
     path = _config_path()
     data = {}
@@ -72,7 +162,22 @@ def load_user_config() -> UserConfig:
 
     handlers = _normalize_handlers(data.get("handlers", {}))
 
-    return UserConfig(matrix_mode=matrix_mode, handlers=handlers)
+    file_shortcuts, file_warnings = _normalize_file_shortcuts(
+        data.get("file_shortcuts", {})
+    )
+    dir_shortcuts, dir_warnings = _normalize_dir_shortcuts(
+        data.get("dir_shortcuts", {})
+    )
+
+    warnings = file_warnings + dir_warnings
+
+    return UserConfig(
+        matrix_mode=matrix_mode,
+        handlers=handlers,
+        file_shortcuts=file_shortcuts,
+        dir_shortcuts=dir_shortcuts,
+        warnings=warnings,
+    )
 
 
 USER_CONFIG = load_user_config()

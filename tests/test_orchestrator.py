@@ -39,6 +39,7 @@ class DummyNavigator:
         self.renderer = DummyRenderer()
         self.input_handler = DummyInputHandler()
         self.need_redraw = True
+        self.layout_mode = "list"
 
 
 def test_setup_creates_navigator(tmp_path: Path):
