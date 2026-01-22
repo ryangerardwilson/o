@@ -4,6 +4,7 @@ import os
 import time
 import shutil
 import subprocess
+from typing import List
 
 
 class InputHandler:
@@ -428,6 +429,72 @@ class InputHandler:
 
         self.nav.need_redraw = True
 
+    def _run_workspace_commands(
+        self, commands: List[List[str]], *, background: bool
+    ) -> bool:
+        if not commands:
+            return False
+
+        success = False
+
+        stdscr_opt = getattr(self.nav.renderer, "stdscr", None)
+
+        def _suspend_curses():
+            if stdscr_opt is None:
+                return
+            try:
+                curses.def_prog_mode()
+            except curses.error:
+                pass
+            try:
+                curses.endwin()
+            except curses.error:
+                pass
+
+        def _resume_curses():
+            if stdscr_opt is None:
+                return
+            try:
+                curses.reset_prog_mode()
+            except curses.error:
+                pass
+            try:
+                curses.curs_set(0)
+            except curses.error:
+                pass
+            try:
+                stdscr_opt.refresh()
+            except Exception:
+                pass
+
+        cwd = self.nav.dir_manager.current_path
+
+        for raw_tokens in commands:
+            tokens = [os.path.expanduser(tok) for tok in raw_tokens]
+            if not tokens:
+                continue
+
+            if background:
+                if self.nav.open_terminal(None, tokens):
+                    success = True
+                    break
+                continue
+
+            _suspend_curses()
+            try:
+                result = subprocess.run(tokens, cwd=cwd)
+                if result.returncode == 0:
+                    success = True
+                    break
+            except FileNotFoundError:
+                continue
+            except Exception:
+                continue
+            finally:
+                _resume_curses()
+
+        return success
+
     def _invoke_directory_shortcut(
         self,
         token: str,
@@ -492,8 +559,17 @@ class InputHandler:
         issues = []
         success = False
 
-        internal_path = entry.get("internal")
-        external_path = entry.get("external")
+        internal_path = entry.get("internal_path")
+        external_path = entry.get("external_path")
+        internal_commands = entry.get("internal_commands", [])
+        external_commands = entry.get("external_commands", [])
+
+        if external_commands:
+            if self._run_workspace_commands(external_commands, background=True):
+                fragments.append("external command")
+                success = True
+            else:
+                issues.append("external commands failed")
 
         if external_path:
             if not os.path.exists(external_path):
@@ -511,6 +587,15 @@ class InputHandler:
                     f"external {os.path.basename(external_path) or external_path}"
                 )
                 success = True
+
+        if internal_commands:
+            if self._run_workspace_commands(internal_commands, background=False):
+                fragments.append("internal command")
+                success = True
+                if hasattr(self.nav, "notify_directory_changed"):
+                    self.nav.notify_directory_changed()
+            else:
+                issues.append("internal commands failed")
 
         if internal_path:
             if not os.path.exists(internal_path):
@@ -799,7 +884,16 @@ class InputHandler:
 
             target_name = os.path.basename(target_path) or target_path
             if target_path in self.nav.expanded_nodes:
+                collapse_index = None
+                for idx, (_, _, path, _) in enumerate(display_items):
+                    if os.path.realpath(path) == os.path.realpath(target_path):
+                        collapse_index = idx
+                        break
+
                 self.nav.collapse_branch(target_path)
+                if collapse_index is not None:
+                    self.nav.browser_selected = collapse_index
+                    self.nav.update_visual_active(self.nav.browser_selected)
                 self.nav.status_message = f"Collapsed {target_name}"
             else:
                 self.nav.expanded_nodes.add(target_path)

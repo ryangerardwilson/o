@@ -451,7 +451,9 @@ class FileActionService:
             f"Renamed to {unique_name}" if unique_name != selected_name else "Renamed"
         )
 
-    def open_terminal(self, base_path: Optional[str] = None):
+    def open_terminal(
+        self, base_path: Optional[str] = None, command: Optional[List[str]] = None
+    ) -> bool:
         cwd = self._resolve_base_directory(base_path)
         commands = []
         term_env = os.environ.get("TERMINAL")
@@ -476,19 +478,29 @@ class FileActionService:
                 continue
             if shutil.which(cmd[0]) is None:
                 continue
+            launch_cmd = list(cmd)
+            if command:
+                if any("{cmd}" in token for token in launch_cmd):
+                    launch_cmd = [
+                        token.replace("{cmd}", " ".join(command))
+                        for token in launch_cmd
+                    ]
+                else:
+                    launch_cmd.extend(["-e"] + command)
             try:
                 subprocess.Popen(
-                    cmd,
+                    launch_cmd,
                     cwd=cwd,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     stdin=subprocess.DEVNULL,
                     preexec_fn=os.setsid,
                 )
-                self.nav.status_message = f"Opened terminal: {cmd[0]}"
-                return
+                self.nav.status_message = f"Opened terminal: {launch_cmd[0]}"
+                return True
             except Exception:
                 continue
 
         self.nav.status_message = "No terminal found"
         curses.flash()
+        return False

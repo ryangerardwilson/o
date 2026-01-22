@@ -18,6 +18,10 @@
     "1": {
       "internal": "~/Bible.md",
       "external": "~/Documents/books/1611_king_james_the_holy_bible.pdf"
+    },
+    "2": {
+      "internal": [["worship"]],
+      "external": [["vixl", "~/Documents/fitness/anchor.parquet"]]
     }
   }
 }

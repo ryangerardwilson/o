@@ -232,8 +232,11 @@ Supported options:
   - `,do<token>` to jump inside the directory (e.g. `,doga` → `~/Apps/genie_allocation`)
   - `,to<token>` to launch an external terminal at the directory without changing focus.
 - `workspace_shortcuts` — map tokens to an object with optional `internal` and
-  `external` paths. Trigger with `,w<token>` to open both targets (internal is 
-  opened within `o`, external launches via configured handlers/terminal).
+  `external` entries. Each entry accepts either a path (string) or a list of
+  command arrays (e.g. `[ ["worship"] ]`). Paths behave as before; command arrays on the
+  `external` side spawn a new terminal and run there, while `internal` command arrays run
+  synchronously inside `o`. Trigger with `,w<token>` to open both targets (internal opens
+  inside `o`, external launches via handlers/terminal).
 
 If a handler command or mapping is missing, `o` simply leaves the file
 unopened. Configure viewers/editors explicitly to control how files launch.
@@ -261,6 +264,10 @@ Reference template (`template_config.json`):
     "1": {
       "internal": "~/Bible.md",
       "external": "~/Documents/books/1611_king_james_the_holy_bible.pdf"
+    },
+    "2": {
+      "internal": [["worship"]],
+      "external": [["vixl", "~/Documents/fitness/anchor.parquet"]]
     }
   }
 }

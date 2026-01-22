@@ -1,5 +1,7 @@
 import os
 import sys
+import time
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -65,6 +67,7 @@ class DummyNavigator:
         self.changed_dirs = []
         self.layout_mode = "list"
         self.terminal_calls = []
+        self.terminal_commands = []
         self.renderer = SimpleNamespace(stdscr=None)
         self.command_mode = False
         self.command_buffer = ""
@@ -164,11 +167,20 @@ class DummyNavigator:
     def enter_list_mode(self):
         self.layout_mode = "list"
 
-    def open_terminal(self, base_path: str | None = None):
-        if base_path:
-            self.terminal_calls.append(os.path.realpath(base_path))
-        else:
-            self.terminal_calls.append(os.path.realpath(self.dir_manager.current_path))
+    def open_terminal(self, base_path: str | None = None, command: list[str] | None = None):
+        cwd = (
+            os.path.realpath(base_path)
+            if base_path
+            else os.path.realpath(self.dir_manager.current_path)
+        )
+        self.terminal_calls.append(cwd)
+        if command:
+            self.terminal_commands.append(command)
+            try:
+                subprocess.run(command, cwd=cwd, check=False)
+            except Exception:
+                pass
+        return True
 
     def enter_visual_mode(self, index):
         self.visual_mode = True
@@ -728,8 +740,8 @@ def test_workspace_shortcut_opens_internal_and_external(tmp_path):
     nav = DummyNavigator([], str(tmp_path))
     nav.config.workspace_shortcuts = {
         "1": {
-            "internal": os.path.realpath(str(internal_file)),
-            "external": os.path.realpath(str(external_file)),
+            "internal_path": os.path.realpath(str(internal_file)),
+            "external_path": os.path.realpath(str(external_file)),
         }
     }
     handler = InputHandler(nav)
@@ -760,8 +772,8 @@ def test_workspace_shortcut_directory_and_external_dir(tmp_path):
     nav = DummyNavigator([], str(tmp_path))
     nav.config.workspace_shortcuts = {
         "wk": {
-            "internal": os.path.realpath(str(internal_dir)),
-            "external": os.path.realpath(str(external_dir)),
+            "internal_path": os.path.realpath(str(internal_dir)),
+            "external_path": os.path.realpath(str(external_dir)),
         }
     }
     handler = InputHandler(nav)
@@ -792,7 +804,7 @@ def test_workspace_shortcut_missing_paths(tmp_path):
 
     nav = DummyNavigator([], str(tmp_path))
     nav.config.workspace_shortcuts = {
-        "x": {"internal": os.path.realpath(str(internal_file))}
+        "x": {"internal_path": os.path.realpath(str(internal_file))}
     }
     handler = InputHandler(nav)
 
@@ -810,6 +822,48 @@ def test_workspace_shortcut_missing_paths(tmp_path):
     assert nav.opened_paths == []
     assert nav.changed_dirs == []
     assert "unavailable" in nav.status_message.lower()
+
+
+def test_workspace_shortcut_runs_commands(tmp_path):
+    external_marker = tmp_path / "external.done"
+    internal_marker = tmp_path / "internal.done"
+
+    external_script = tmp_path / "external.sh"
+    external_script.write_text(f"#!/bin/sh\ntouch {external_marker}\n")
+    external_script.chmod(0o755)
+
+    internal_script = tmp_path / "internal.sh"
+    internal_script.write_text(f"#!/bin/sh\ntouch {internal_marker}\n")
+    internal_script.chmod(0o755)
+
+    nav = DummyNavigator([], str(tmp_path))
+    nav.config.workspace_shortcuts = {
+        "2": {
+            "internal_commands": [[str(internal_script)]],
+            "external_commands": [[str(external_script)]],
+        }
+    }
+    handler = InputHandler(nav)
+
+    handler.pending_comma = True
+    handler.comma_sequence = ""
+    handler._handle_comma_command(
+        ord("w"), 0, None, None, None, nav.dir_manager.current_path
+    )
+    handler._handle_comma_command(
+        ord("2"), 0, None, None, None, nav.dir_manager.current_path
+    )
+
+    # External command runs in background; allow brief time for completion
+    for _ in range(10):
+        if external_marker.exists() and internal_marker.exists():
+            break
+        time.sleep(0.05)
+
+    assert external_marker.exists()
+    assert internal_marker.exists()
+    assert nav.terminal_commands and nav.terminal_commands[0] == [str(external_script)]
+    assert "workspace" in nav.status_message.lower()
 
 
 def _enter_command_mode(handler: InputHandler):
@@ -900,3 +954,25 @@ def test_e_on_file_expands_parent(tmp_path):
     assert parent_dir in nav.expanded_nodes
     assert "expanded" in nav.status_message.lower()
     assert nav.need_redraw
+
+
+def test_e_collapse_positions_cursor(tmp_path):
+    parent_dir_path = tmp_path / "docs"
+    parent_dir_path.mkdir()
+    child_name = "notes.txt"
+    (parent_dir_path / child_name).write_text("hello")
+    parent_dir = os.path.realpath(str(parent_dir_path))
+    items = [
+        ("docs", True, parent_dir, 0),
+        (child_name, False, os.path.join(parent_dir, child_name), 1),
+    ]
+
+    nav = DummyNavigator(items, str(tmp_path))
+    nav.expanded_nodes.add(parent_dir)
+    nav.browser_selected = 1
+    handler = InputHandler(nav)
+
+    handler.handle_key(None, ord("e"))
+
+    assert nav.browser_selected == 0
+    assert "collapsed" in nav.status_message.lower()

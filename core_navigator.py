@@ -82,8 +82,10 @@ class FileNavigator:
     def create_new_file(self):
         self.file_actions.create_new_file()
 
-    def open_terminal(self, base_path: Optional[str] = None):
-        self.file_actions.open_terminal(base_path)
+    def open_terminal(
+        self, base_path: Optional[str] = None, command: Optional[List[str]] = None
+    ) -> bool:
+        return self.file_actions.open_terminal(base_path, command)
 
     def create_new_file_no_open(self, base_path: Optional[str] = None):
         self.file_actions.create_new_file_no_open(base_path)

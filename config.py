@@ -2,7 +2,7 @@ import json
 import os
 import shlex
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 
 @dataclass
@@ -11,7 +11,7 @@ class UserConfig:
     handlers: Dict[str, List[List[str]]] = field(default_factory=dict)
     file_shortcuts: Dict[str, str] = field(default_factory=dict)
     dir_shortcuts: Dict[str, str] = field(default_factory=dict)
-    workspace_shortcuts: Dict[str, Dict[str, str]] = field(default_factory=dict)
+    workspace_shortcuts: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     warnings: List[str] = field(default_factory=list)
 
     def get_handler_commands(self, name: str) -> List[List[str]]:
@@ -147,8 +147,8 @@ def _normalize_dir_shortcuts(raw_shortcuts) -> Tuple[Dict[str, str], List[str]]:
 
 def _normalize_workspace_shortcuts(
     raw_shortcuts,
-) -> Tuple[Dict[str, Dict[str, str]], List[str]]:
-    shortcuts: Dict[str, Dict[str, str]] = {}
+) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
+    shortcuts: Dict[str, Dict[str, Any]] = {}
     warnings: List[str] = []
 
     if not isinstance(raw_shortcuts, dict):
@@ -172,38 +172,59 @@ def _normalize_workspace_shortcuts(
 
         if not isinstance(raw_value, dict):
             warnings.append(
-                f"workspace_shortcuts '{raw_key}' ignored (expected object with paths)"
+                f"workspace_shortcuts '{raw_key}' ignored (expected object with paths or commands)"
             )
             continue
 
-        normalized_entry: Dict[str, str] = {}
+        normalized_entry: Dict[str, Any] = {}
 
         for label in ("internal", "external"):
             candidate = raw_value.get(label)
             if candidate is None:
                 continue
-            if not isinstance(candidate, str):
-                warnings.append(
-                    f"workspace_shortcuts '{raw_key}' {label} ignored (not a string)"
-                )
+
+            key_path = f"{label}_path"
+            key_commands = f"{label}_commands"
+
+            if isinstance(candidate, str):
+                path = _normalize_path(candidate)
+                if not path:
+                    warnings.append(
+                        f"workspace_shortcuts '{raw_key}' {label} ignored (empty path)"
+                    )
+                    continue
+                if not os.path.exists(path):
+                    warnings.append(
+                        f"workspace_shortcuts '{raw_key}' {label} ignored ({path} missing)"
+                    )
+                    continue
+                normalized_entry[key_path] = path
                 continue
-            path = _normalize_path(candidate)
-            if not path:
-                warnings.append(
-                    f"workspace_shortcuts '{raw_key}' {label} ignored (empty path)"
-                )
+
+            if isinstance(candidate, list):
+                commands: List[List[str]] = []
+                for entry in candidate:
+                    cmd = _normalize_command(entry)
+                    if cmd:
+                        commands.append(cmd)
+                if not commands:
+                    warnings.append(
+                        f"workspace_shortcuts '{raw_key}' {label} ignored (no valid commands)"
+                    )
+                    continue
+                normalized_entry[key_commands] = commands
                 continue
-            if not os.path.exists(path):
-                warnings.append(
-                    f"workspace_shortcuts '{raw_key}' {label} ignored ({path} missing)"
-                )
-                continue
-            normalized_entry[label] = path
+
+            warnings.append(
+                f"workspace_shortcuts '{raw_key}' {label} ignored (unsupported type)"
+            )
 
         if normalized_entry:
             shortcuts[token] = normalized_entry
         else:
-            warnings.append(f"workspace_shortcuts '{raw_key}' ignored (no valid paths)")
+            warnings.append(
+                f"workspace_shortcuts '{raw_key}' ignored (no valid paths or commands)"
+            )
 
     return shortcuts, warnings
 
