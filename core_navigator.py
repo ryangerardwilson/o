@@ -48,6 +48,8 @@ class FileNavigator:
         self.visual_active_index: Optional[int] = None
         self.matrix_state = None
         self.matrix_return_map: dict[str, int] = {}
+        self.command_mode = False
+        self.command_buffer = ""
 
         if self.config.warnings and not self.status_message:
             self.status_message = self.config.warnings[0]

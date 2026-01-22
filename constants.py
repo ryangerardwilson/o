@@ -42,6 +42,10 @@ Clipboard & Multi Operations
   m               Toggle mark on current item (✓) — auto-advance
   p               Paste clipboard into selected directory (or alongside selected file)
 
+Command Mode
+  :               Enter command mode
+  :!<cmd>         Run shell command in current directory
+
 Visual Mode
   v               Enter visual selection; press v again to add range to marks
   j / k           Extend/shrink selection while in visual mode

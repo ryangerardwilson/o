@@ -163,12 +163,11 @@ modal file browser without leaving the terminal.
 - Matrix mode automatically freezes any streams included in the current visual selection (and the focused stream) so they stay in view.
 - Esc: Exit visual mode without adding the current range.
 
-### Command Mode (`i`)
+### Command Mode (`:`)
 
-- Type commands like : cp old.txt new.txt.
-- Tab: Auto-complete filenames/dirs.
-- Enter: Run silently.
-- Esc: Exit mode.
+- Press `:` to enter command mode.
+- Run shell commands with `:!<command>` (executed in the current directory).
+- `Enter` runs the command; `Esc` cancels.
 
 ### Open Terminal
 

@@ -58,11 +58,17 @@ class DummyNavigator:
         self.visual_mode = False
         self.visual_anchor_index = None
         self.visual_active_index = None
-        self.config = SimpleNamespace(file_shortcuts={}, dir_shortcuts={})
+        self.config = SimpleNamespace(
+            file_shortcuts={}, dir_shortcuts={}, workspace_shortcuts={}
+        )
         self.opened_paths = []
         self.changed_dirs = []
         self.layout_mode = "list"
         self.terminal_calls = []
+        self.renderer = SimpleNamespace(stdscr=None)
+        self.command_mode = False
+        self.command_buffer = ""
+        self.notified_dirs = []
 
     def build_display_items(self):
         return list(self.display_items)
@@ -147,6 +153,10 @@ class DummyNavigator:
         self.dir_manager.current_path = real
         self.changed_dirs.append(real)
         return True
+
+    def notify_directory_changed(self, *paths):
+        normalized = tuple(os.path.realpath(p) for p in paths if p)
+        self.notified_dirs.append(normalized)
 
     def enter_matrix_mode(self):
         self.layout_mode = "matrix"
@@ -800,6 +810,49 @@ def test_workspace_shortcut_missing_paths(tmp_path):
     assert nav.opened_paths == []
     assert nav.changed_dirs == []
     assert "unavailable" in nav.status_message.lower()
+
+
+def _enter_command_mode(handler: InputHandler):
+    handler.handle_key(None, ord(":"))
+
+
+def test_command_mode_shell_creates_file(tmp_path):
+    nav = FileNavigator(str(tmp_path))
+    handler = nav.input_handler
+
+    _enter_command_mode(handler)
+    for ch in "!touch cmd_test.txt":
+        handler.handle_key(None, ord(ch))
+    handler.handle_key(None, 10)
+
+    target = tmp_path / "cmd_test.txt"
+    assert target.exists()
+    assert "exit 0" in nav.status_message
+    assert not nav.command_mode
+
+
+def test_command_mode_unknown_command(tmp_path):
+    nav = FileNavigator(str(tmp_path))
+    handler = nav.input_handler
+
+    _enter_command_mode(handler)
+    for ch in "test":
+        handler.handle_key(None, ord(ch))
+    handler.handle_key(None, 10)
+
+    assert "unknown command" in nav.status_message.lower()
+    assert not nav.command_mode
+
+
+def test_command_mode_cancel(tmp_path):
+    nav = FileNavigator(str(tmp_path))
+    handler = nav.input_handler
+
+    _enter_command_mode(handler)
+    handler.handle_key(None, 27)
+
+    assert not nav.command_mode
+    assert "cancelled" in nav.status_message.lower()
 
 
 def _make_nested_items(parent_path: str, child_name: str):

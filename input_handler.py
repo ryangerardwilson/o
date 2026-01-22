@@ -3,6 +3,7 @@ import curses
 import os
 import time
 import shutil
+import subprocess
 
 
 class InputHandler:
@@ -319,6 +320,114 @@ class InputHandler:
         self.nav.open_file(path)
         self.nav.need_redraw = True
 
+    def _enter_command_mode(self) -> None:
+        self.nav.command_mode = True
+        self.nav.command_buffer = ""
+        self.nav.status_message = ""
+        self.nav.leader_sequence = ""
+        self.nav.need_redraw = True
+
+    def _handle_command_mode_key(self, key: int) -> None:
+        if key in (10, 13, curses.KEY_ENTER):
+            command = self.nav.command_buffer.strip()
+            self.nav.command_mode = False
+            self.nav.command_buffer = ""
+            self._execute_command(command)
+            return
+
+        if key == 27:  # Esc
+            self.nav.command_mode = False
+            self.nav.command_buffer = ""
+            self.nav.status_message = "Command cancelled"
+            self.nav.need_redraw = True
+            return
+
+        if key in (curses.KEY_BACKSPACE, 127, 8):
+            if self.nav.command_buffer:
+                self.nav.command_buffer = self.nav.command_buffer[:-1]
+                self.nav.need_redraw = True
+            else:
+                self.nav.command_mode = False
+                self.nav.status_message = "Command cancelled"
+                self.nav.need_redraw = True
+            return
+
+        char = self._key_to_char(key)
+        if char is not None:
+            self.nav.command_buffer += char
+            self.nav.need_redraw = True
+
+    def _execute_command(self, command: str) -> None:
+        if not command:
+            self.nav.status_message = "No command entered"
+            self.nav.need_redraw = True
+            return
+
+        if command.startswith("!"):
+            shell_cmd = command[1:].strip()
+            if not shell_cmd:
+                self.nav.status_message = "Empty shell command"
+                self.nav.need_redraw = True
+                return
+            self._run_shell_command(shell_cmd)
+            return
+
+        self.nav.status_message = f"Unknown command: {command}"
+        self._flash()
+        self.nav.need_redraw = True
+
+    def _run_shell_command(self, shell_cmd: str) -> None:
+        stdscr_opt = getattr(self.nav.renderer, "stdscr", None)
+        if stdscr_opt is not None:
+            try:
+                curses.def_prog_mode()
+            except curses.error:
+                pass
+            try:
+                curses.endwin()
+            except curses.error:
+                pass
+
+        cwd = self.nav.dir_manager.current_path
+        return_code = None
+        error_message = ""
+
+        try:
+            result = subprocess.run(shell_cmd, shell=True, cwd=cwd)
+            return_code = result.returncode
+        except Exception as exc:  # pragma: no cover
+            error_message = str(exc)
+        finally:
+            if stdscr_opt is not None:
+                try:
+                    curses.reset_prog_mode()
+                except curses.error:
+                    pass
+                try:
+                    curses.curs_set(0)
+                except curses.error:
+                    pass
+                try:
+                    stdscr_opt.refresh()
+                except Exception:
+                    pass
+
+        if return_code is None:
+            self.nav.status_message = f"! {shell_cmd} failed: {error_message}"
+            self._flash()
+            self.nav.need_redraw = True
+            return
+
+        if return_code == 0:
+            self.nav.status_message = f"! {shell_cmd} (exit 0)"
+            if hasattr(self.nav, "notify_directory_changed"):
+                self.nav.notify_directory_changed()
+        else:
+            self.nav.status_message = f"! {shell_cmd} (exit {return_code})"
+            self._flash()
+
+        self.nav.need_redraw = True
+
     def _invoke_directory_shortcut(
         self,
         token: str,
@@ -484,10 +593,19 @@ class InputHandler:
                 return False
             return False
 
+        if getattr(self.nav, "command_mode", False):
+            self._handle_command_mode_key(key)
+            return False
+
         self._check_operator_timeout()
         self._check_comma_timeout()
 
         # === FILTER MODE ===
+        if not self.in_filter_mode and key == ord(":"):
+            self.nav.exit_visual_mode()
+            self._enter_command_mode()
+            return False
+
         if key == ord("/"):
             self.nav.exit_visual_mode()
             if self.in_filter_mode:

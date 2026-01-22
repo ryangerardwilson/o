@@ -125,6 +125,10 @@ class UIRenderer:
     ) -> str:
         parts: list[str] = []
 
+        if getattr(self.nav, "command_mode", False):
+            buffer = getattr(self.nav, "command_buffer", "")
+            parts.append(":" + buffer)
+
         if mode_indicator:
             parts.append(mode_indicator)
 
