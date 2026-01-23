@@ -60,6 +60,10 @@ class FileNavigator:
         if self.config.warnings and not self.status_message:
             self.status_message = self.config.warnings[0]
 
+        # Command-mode history of successful shell invocations
+        self.command_history: List[str] = []
+        self.command_history_index: Optional[int] = None
+
     def open_file(self, filepath: str):
         self.file_actions.open_file(filepath)
 

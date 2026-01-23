@@ -345,6 +345,9 @@ class InputHandler:
         except Exception:
             self.command_cwd = self.nav.dir_manager.current_path
 
+        if hasattr(self.nav, "command_history"):
+            self.nav.command_history_index = len(self.nav.command_history)
+
         self.nav.need_redraw = True
 
     def _handle_command_mode_key(self, key: int) -> None:
@@ -360,23 +363,41 @@ class InputHandler:
             self.nav.status_message = "Command cancelled"
             self.nav.need_redraw = True
             self.command_cwd = None
+            if hasattr(self.nav, "command_history_index"):
+                self.nav.command_history_index = None
             return
 
         if key in (curses.KEY_BACKSPACE, 127, 8):
             if self.nav.command_buffer:
                 self.nav.command_buffer = self.nav.command_buffer[:-1]
                 self.nav.need_redraw = True
+                if hasattr(self.nav, "command_history_index"):
+                    self.nav.command_history_index = len(self.nav.command_history)
             else:
                 self.nav.command_mode = False
                 self.nav.status_message = "Command cancelled"
                 self.nav.need_redraw = True
                 self.command_cwd = None
+                if hasattr(self.nav, "command_history_index"):
+                    self.nav.command_history_index = None
+            return
+
+        if key == 16:  # Ctrl+P
+            if self._command_history_step(-1):
+                self.nav.need_redraw = True
+            return
+
+        if key == 14:  # Ctrl+N
+            if self._command_history_step(1):
+                self.nav.need_redraw = True
             return
 
         char = self._key_to_char(key)
         if char is not None:
             self.nav.command_buffer += char
             self.nav.need_redraw = True
+            if hasattr(self.nav, "command_history_index"):
+                self.nav.command_history_index = len(self.nav.command_history)
 
     def _execute_command(self, command: str) -> None:
         if not command:
@@ -393,8 +414,10 @@ class InputHandler:
                 self.nav.status_message = "Empty shell command"
                 self.nav.need_redraw = True
                 self.command_cwd = None
+                if hasattr(self.nav, "command_history_index"):
+                    self.nav.command_history_index = None
                 return
-            self._run_shell_command(shell_cmd)
+            self._run_shell_command(shell_cmd, original_command=command)
             return
 
         self.nav.status_message = f"Unknown command: {command}"
@@ -402,8 +425,10 @@ class InputHandler:
         self.nav.command_mode = False
         self.nav.need_redraw = True
         self.command_cwd = None
+        if hasattr(self.nav, "command_history_index"):
+            self.nav.command_history_index = None
 
-    def _run_shell_command(self, shell_cmd: str) -> None:
+    def _run_shell_command(self, shell_cmd: str, *, original_command: str) -> None:
         cwd_candidate = self.command_cwd or self.nav.dir_manager.current_path
         cwd = os.path.realpath(cwd_candidate)
         if not os.path.isdir(cwd):
@@ -475,10 +500,49 @@ class InputHandler:
         if should_flash:
             self._flash()
 
+        if return_code == 0 and original_command:
+            history = getattr(self.nav, "command_history", None)
+            if history is not None:
+                history.append(original_command)
+                self.nav.command_history_index = None
+
         self.nav.command_mode = False
         self.nav.status_message = message
         self.nav.need_redraw = True
         self.command_cwd = None
+        if hasattr(self.nav, "command_history_index"):
+            self.nav.command_history_index = None
+
+    def _command_history_step(self, delta: int) -> bool:
+        history = getattr(self.nav, "command_history", None)
+        if history is None:
+            return False
+
+        length = len(history)
+        if length == 0:
+            self._flash()
+            return False
+
+        index = getattr(self.nav, "command_history_index", None)
+        if index is None:
+            index = length
+
+        new_index = index + delta
+
+        if new_index < 0:
+            self._flash()
+            return False
+
+        if new_index > length:
+            self._flash()
+            return False
+
+        self.nav.command_history_index = new_index
+        if new_index == length:
+            self.nav.command_buffer = ""
+        else:
+            self.nav.command_buffer = history[new_index]
+        return True
 
     def _run_workspace_commands(
         self, commands: List[List[str]], *, background: bool
