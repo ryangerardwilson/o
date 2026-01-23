@@ -1103,6 +1103,12 @@ class InputHandler:
             self._open_user_config()
             return False
 
+        if key == ord("q"):
+            self.nav.exit_visual_mode()
+            self.nav.status_message = "Quit"
+            self.nav.need_redraw = True
+            return True
+
         if key == ord("t"):
             self.nav.open_terminal()
             return False

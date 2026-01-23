@@ -1000,6 +1000,16 @@ def test_c_shortcut_opens_config_in_vim(tmp_path, monkeypatch):
     assert "vim" in nav.status_message.lower()
 
 
+def test_q_shortcut_requests_quit(tmp_path):
+    nav = FileNavigator(str(tmp_path))
+    handler = nav.input_handler
+
+    result = handler.handle_key(None, ord("q"))
+
+    assert result is True
+    assert "quit" in nav.status_message.lower()
+
+
 def test_command_history_navigation(tmp_path):
     nav = FileNavigator(str(tmp_path))
     handler = nav.input_handler
