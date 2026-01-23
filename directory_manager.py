@@ -32,6 +32,8 @@ class DirectoryManager:
     def toggle_hidden(self):
         """Toggle visibility of hidden files/directories"""
         self.show_hidden = not self.show_hidden
+        # Hidden visibility affects every cached listing, so clear caches
+        self.refresh_cache()
 
     def get_hidden_status_text(self) -> str:
         """Return text for status bar when hidden files are visible"""
