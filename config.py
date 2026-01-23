@@ -205,16 +205,46 @@ def _normalize_workspace_shortcuts(
 
             if isinstance(candidate, list):
                 commands: List[List[str]] = []
+                saw_invalid = False
                 for entry in candidate:
                     cmd = _normalize_command(entry)
                     if cmd:
                         commands.append(cmd)
-                if not commands:
+                        continue
+
+                    if isinstance(entry, list):
+                        # Treat lists containing only empty/whitespace strings as "no preference"
+                        if not entry or all(
+                            isinstance(token, str) and not token.strip()
+                            for token in entry
+                        ):
+                            continue
+                        if not all(isinstance(token, str) for token in entry):
+                            saw_invalid = True
+                        else:
+                            saw_invalid = True
+                        continue
+
+                    if isinstance(entry, str):
+                        # Blank strings are also considered "no preference"
+                        if not entry.strip():
+                            continue
+                        saw_invalid = True
+                        continue
+
+                    if entry is None:
+                        continue
+
+                    saw_invalid = True
+
+                if commands:
+                    normalized_entry[key_commands] = commands
+                    continue
+
+                if saw_invalid:
                     warnings.append(
                         f"workspace_shortcuts '{raw_key}' {label} ignored (no valid commands)"
                     )
-                    continue
-                normalized_entry[key_commands] = commands
                 continue
 
             warnings.append(
