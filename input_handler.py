@@ -23,6 +23,18 @@ class InputHandler:
         self.comma_sequence = ""
 
         self.command_cwd: str | None = None
+        self.last_repeat_sequence: list[int] | None = None
+        self.is_repeating = False
+        self.repeatable_leader_commands = {
+            "xr",
+            "xar",
+            "dot",
+            "conf",
+            "nf",
+            "nd",
+            "rn",
+            "b",
+        }
 
     def _check_operator_timeout(self):
         if self.pending_operator and (
@@ -60,9 +72,6 @@ class InputHandler:
             self._flash()
             return
         self.nav.rename_selected()
-
-    def _leader_copy_path(self):
-        self.nav.copy_current_path()
 
     def _leader_bookmark(self):
         target = self.nav.dir_manager.current_path
@@ -133,6 +142,12 @@ class InputHandler:
         else:
             self.nav.status_message = "No expansions to collapse"
         self.nav.need_redraw = True
+
+    def _record_repeat_sequence(self, keys: list[int]) -> None:
+        if not keys:
+            self.last_repeat_sequence = None
+            return
+        self.last_repeat_sequence = list(keys)
 
     def _expand_all_directories(self):
         self.nav.exit_visual_mode()
@@ -206,7 +221,6 @@ class InputHandler:
             "nf": lambda: self.nav.create_new_file_no_open(base_dir),
             "nd": lambda: self.nav.create_new_directory(base_dir),
             "rn": lambda: self._leader_rename(selection),
-            "cp": self._leader_copy_path,
             "b": self._leader_bookmark,
             "cm": self._clear_marked_items,
             "xr": lambda: self._toggle_inline_expansion(selection, display_items),
@@ -285,6 +299,9 @@ class InputHandler:
 
         if command in command_map:
             command_map[command]()
+            if command in self.repeatable_leader_commands:
+                sequence = [ord(",")] + [ord(ch) for ch in command]
+                self._record_repeat_sequence(sequence)
             self._reset_comma()
             return True
 
@@ -1197,7 +1214,7 @@ class InputHandler:
         # === Toggle mark with 'm' — now using full path ===
         if key == ord("m"):
             self.nav.exit_visual_mode()
-            if total > 0:
+            if total > 0 and selected_path:
                 full_path = selected_path
                 if full_path in self.nav.marked_items:
                     self.nav.marked_items.remove(full_path)
@@ -1205,6 +1222,7 @@ class InputHandler:
                     self.nav.marked_items.add(full_path)
                 # Auto-advance after marking
                 self.nav.browser_selected = (self.nav.browser_selected + 1) % total
+                self._record_repeat_sequence([ord("m")])
             return False
 
         # === VISUAL MODE TOGGLE ===
@@ -1219,6 +1237,27 @@ class InputHandler:
             return False
 
         # === Other single-key commands ===
+        if key == ord("."):
+            if self.is_repeating:
+                return False
+            if not self.last_repeat_sequence:
+                self.nav.status_message = "Nothing to repeat"
+                self._flash()
+                self.nav.need_redraw = True
+                return False
+
+            sequence = list(self.last_repeat_sequence)
+            self.is_repeating = True
+            result = False
+            try:
+                for seq_key in sequence:
+                    result = self.handle_key(None, seq_key)
+                    if result:
+                        break
+            finally:
+                self.is_repeating = False
+            return result
+
         if key == ord("?"):
             self.nav.show_help = True
             self.nav.help_scroll = 0
@@ -1238,6 +1277,7 @@ class InputHandler:
         if self.nav.marked_items:
             if key == ord("p"):
                 self._copy_marked(target_dir)
+                self._record_repeat_sequence([ord("p")])
                 return False
             if key == ord("x"):
                 self._delete_marked()
@@ -1251,6 +1291,7 @@ class InputHandler:
                 noun = "item" if count == 1 else "items"
                 self.nav.status_message = f"Pasted {count} {noun}"
                 self._notify_directories({target_dir})
+                self._record_repeat_sequence([ord("p")])
             except Exception:
                 self._flash()
             return False

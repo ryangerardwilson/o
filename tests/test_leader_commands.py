@@ -1026,6 +1026,10 @@ def test_conf_leader_opens_config_and_reloads(tmp_path, monkeypatch):
     assert "reloaded" in nav.status_message.lower()
     assert "warn" in nav.status_message.lower()
 
+    handler.handle_key(None, ord("."))
+    assert load_calls["count"] == 2
+    assert opened_paths["path"] == expected_path
+
 
 def test_q_shortcut_requests_quit(tmp_path):
     nav = FileNavigator(str(tmp_path))
@@ -1303,6 +1307,51 @@ def test_leader_xar_expands_all_directories(tmp_path):
         handler.handle_key(None, ord(ch))
 
     assert "no directories" in nav.status_message.lower()
+
+
+def test_dot_repeats_mark_toggle():
+    items = [
+        ("alpha.txt", False, "/proj/alpha.txt", 0),
+        ("beta.txt", False, "/proj/beta.txt", 0),
+    ]
+
+    nav = DummyNavigator(items, "/proj")
+    handler = InputHandler(nav)
+
+    handler.handle_key(None, ord("m"))
+    assert "/proj/alpha.txt" in nav.marked_items
+    handler.handle_key(None, ord("."))
+
+    assert "/proj/beta.txt" in nav.marked_items
+    assert len(nav.marked_items) == 2
+    assert nav.browser_selected == 0
+
+
+def test_dot_repeats_leader_xr(tmp_path):
+    parent_dir_path = tmp_path / "docs"
+    parent_dir_path.mkdir()
+    child_path = parent_dir_path / "file.txt"
+    child_path.write_text("hello")
+
+    parent_dir = os.path.realpath(str(parent_dir_path))
+    items = [
+        ("docs", True, parent_dir, 0),
+        ("file.txt", False, os.path.realpath(str(child_path)), 1),
+    ]
+
+    nav = DummyNavigator(items, str(tmp_path))
+    handler = InputHandler(nav)
+
+    handler.handle_key(None, ord(","))
+    handler.handle_key(None, ord("x"))
+    handler.handle_key(None, ord("r"))
+
+    assert parent_dir in nav.expanded_nodes
+
+    handler.handle_key(None, ord("."))
+
+    assert parent_dir not in nav.expanded_nodes
+    assert "collapsed" in nav.status_message.lower()
 
 
 from file_actions import FileActionService

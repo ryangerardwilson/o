@@ -91,10 +91,11 @@ python main.py
   - `,do<token>` — Jump to directory shortcut (e.g. `,doga`)
   - `,to<token>` — Open external terminal at shortcut directory (e.g. `,toga`)
   - `,w<token>` — Launch workspace shortcut (open internal + external targets)
-  - `,cp` — Copy `cd` command for current path to system clipboard
   - `,cl` — Clear clipboard contents
   - `,cm` — Clear all marks
   - `,i<token>` — Open configured browser shortcut (e.g. `,ix`)
+- **Repeat commands**
+  - `.` — Repeat the last repeatable command (`m`, `p`, `,xr`, `,xar`, `,dot`, `,conf`, `,nf`, `,nd`, `,rn`, `,b`)
 - **Powerful Filtering** (glob-style):
   - `/` — Enter filter mode
     - Type pattern (e.g., `rat`, `*.py`, `*test*`)
@@ -191,6 +192,10 @@ modal file browser without leaving the terminal.
 - `q`: Quit the application.
 - `Ctrl+C`: Force quit.
 
+### Repeat commands
+
+- `.`: Repeat the last repeatable command (`m`, `p`, `,xr`, `,xar`, `,dot`, `,conf`, `,nf`, `,nd`, `,rn`, `,b`).
+
 ### Leader Commands (press `,` first)
 
 - ,xr: Toggle inline expansion/collapse for the current selection.
@@ -203,7 +208,6 @@ modal file browser without leaving the terminal.
 - ,nf / ,nd: Create a new file / directory without opening it.
 - ,rn: Rename the currently selected item.
 - ,b: Toggle a bookmark for the current directory.
-- ,cp: Copy a `cd` command for the current directory to the system clipboard.
 - ,cl: Clear the multi-item clipboard buffer.
 - ,cm: Clear all marks.
 - ,fo<token>: Open configured file shortcuts (e.g. `,fonotes`).

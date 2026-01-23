@@ -55,6 +55,7 @@ Visual Mode
 
 Other
   ~               Collapse all expansions and return to ~
+  .               Repeat last repeatable command
   t               Open terminal in current directory
   ?               Toggle this help
   q               Quit the app
@@ -71,7 +72,6 @@ Leader Commands (press "," first)
   ,nf / ,nd       Create new file / directory in context
   ,rn             Rename selected item
   ,b              Toggle bookmark for current directory
-  ,cp             Copy cd command for current path to clipboard
   ,cl             Clear clipboard contents
   ,cm             Clear all marks
   ,fo<token>      Open configured file shortcuts (e.g. ,fonotes)
