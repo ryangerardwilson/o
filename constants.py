@@ -55,16 +55,17 @@ Visual Mode
 
 Other
   ~               Collapse all expansions and return to ~
-  c               Open config file in Vim
   t               Open terminal in current directory
   ?               Toggle this help
   q               Quit the app
   Ctrl+C          Quit immediately
 
 Leader Commands (press "," first)
-  ,xd             Toggle inline expansion/collapse for selection
+  ,xr             Toggle inline expansion/collapse for selection
   ,xc             Collapse all inline expansions
+  ,xar            Expand all directories recursively
   ,dot            Toggle dotfiles visibility
+  ,conf           Open config file in Vim and reload
   ,k / ,j         Jump to top / bottom
   ,sa / ,sma / ,smd Sort alphabetically / modified ↑ / modified ↓
   ,nf / ,nd       Create new file / directory in context

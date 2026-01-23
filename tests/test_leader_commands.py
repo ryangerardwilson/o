@@ -1265,4 +1265,44 @@ def test_leader_xc_collapses_all_expansions():
     assert "no expansions" in nav.status_message.lower()
 
 
+def test_leader_xar_expands_all_directories(tmp_path):
+    root = tmp_path
+    dir_a = root / "a"
+    dir_a.mkdir()
+    dir_a_sub = dir_a / "aa"
+    dir_a_sub.mkdir()
+    dir_b = root / "b"
+    dir_b.mkdir()
+    dir_b_sub = dir_b / "bb"
+    dir_b_sub.mkdir()
+    dir_b_subsub = dir_b_sub / "cc"
+    dir_b_subsub.mkdir()
+
+    nav = FileNavigator(str(root))
+    handler = nav.input_handler
+
+    handler.handle_key(None, ord(","))
+    for ch in "xar":
+        handler.handle_key(None, ord(ch))
+
+    expected_dirs = {
+        os.path.realpath(str(dir_a)),
+        os.path.realpath(str(dir_a_sub)),
+        os.path.realpath(str(dir_b)),
+        os.path.realpath(str(dir_b_sub)),
+        os.path.realpath(str(dir_b_subsub)),
+    }
+
+    assert expected_dirs.issubset(nav.expanded_nodes)
+    assert "expanded" in nav.status_message.lower()
+    assert nav.need_redraw
+
+    # Re-run to ensure we surface "no directories" message when nothing new expands
+    handler.handle_key(None, ord(","))
+    for ch in "xar":
+        handler.handle_key(None, ord(ch))
+
+    assert "no directories" in nav.status_message.lower()
+
+
 from file_actions import FileActionService

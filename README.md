@@ -76,9 +76,11 @@ python main.py
     - `Ctrl+J` / `Ctrl+K` jump roughly 10% down/up the list.
   - `Enter` toggles between Matrix and list views at any time.
 - **Leader Commands (press `,` first)**
-  - `,xd` — Toggle inline expansion/collapse for the selected item
+  - `,xr` — Toggle inline expansion/collapse for the selected item
   - `,xc` — Collapse all inline expansions in the current view
+  - `,xar` — Expand every directory (recursively) in view
   - `,dot` — Toggle dotfile visibility
+  - `,conf` — Open your config in Vim and reload it
   - `,j` / `,k` — Jump to bottom/top instantly
   - `,sa` / `,sma` / `,smd` — Sorting shortcuts
   - `,nf` — Create new file (no open)
@@ -150,8 +152,9 @@ modal file browser without leaving the terminal.
 - `h`: Parent dir.
 - `l`: Enter dir or open file.
 - `Ctrl+J` / `Ctrl+K`: Jump down/up quickly.
-- `,xd`: Toggle inline expansion/collapse for the selection.
+- `,xr`: Toggle inline expansion/collapse for the selection.
 - `,xc`: Collapse all inline expansions while staying in the current directory.
+- `,xar`: Expand every directory under the current view.
 - `Ctrl+H` / `Ctrl+L`: Jump backward/forward through directory history.
 - `Esc`: Collapse inline expansions under the current directory.
 - `~`: Collapse all expansions and return to `~`.
@@ -181,7 +184,7 @@ modal file browser without leaving the terminal.
 ### Open Terminal & Config
 
 - `t`: Launches Alacritty in the current directory.
-- `c`: Opens your `o` config file in Vim (creating directories as needed).
+- `,conf`: Opens your `o` config file in Vim, then reloads it when you exit Vim.
 
 ### Quit
 
@@ -190,9 +193,11 @@ modal file browser without leaving the terminal.
 
 ### Leader Commands (press `,` first)
 
-- ,xd: Toggle inline expansion/collapse for the current selection.
+- ,xr: Toggle inline expansion/collapse for the current selection.
 - ,xc: Collapse all inline expansions.
+- ,xar: Expand every directory (recursively) in the current view.
 - ,dot: Toggle dotfile visibility.
+- ,conf: Open the config in Vim and reload it into the running session.
 - ,j / ,k: Jump to bottom/top instantly.
 - ,sa / ,sma / ,smd: Sort alphabetically, by modified date ascending, or descending.
 - ,nf / ,nd: Create a new file / directory without opening it.
