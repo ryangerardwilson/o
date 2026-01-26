@@ -13,6 +13,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from input_handler import InputHandler
 from core_navigator import FileNavigator
+from keys import KEY_ENTER_CARRIAGE
 
 
 class DummyClipboard:
@@ -971,7 +972,7 @@ def test_command_mode_shell_creates_file(tmp_path):
     _enter_command_mode(handler)
     for ch in "!touch cmd_test.txt":
         handler.handle_key(None, ord(ch))
-    handler.handle_key(None, 10)
+    handler.handle_key(None, KEY_ENTER_CARRIAGE)
 
     target = tmp_path / "cmd_test.txt"
     assert target.exists()
@@ -1048,7 +1049,7 @@ def test_command_history_navigation(tmp_path):
     _enter_command_mode(handler)
     for ch in "!echo hi":
         handler.handle_key(None, ord(ch))
-    handler.handle_key(None, 10)
+    handler.handle_key(None, KEY_ENTER_CARRIAGE)
 
     assert nav.command_history == ["!echo hi"]
 
@@ -1080,7 +1081,7 @@ def test_command_mode_unknown_command(tmp_path):
     _enter_command_mode(handler)
     for ch in "test":
         handler.handle_key(None, ord(ch))
-    handler.handle_key(None, 10)
+    handler.handle_key(None, KEY_ENTER_CARRIAGE)
 
     assert "unknown command" in nav.status_message.lower()
     assert not nav.command_mode
@@ -1121,7 +1122,7 @@ def test_command_mode_runs_in_current_directory(tmp_path):
         handler.handle_key(None, ord(":"))
         for ch in "!pwd":
             handler.handle_key(None, ord(ch))
-        handler.handle_key(None, 10)
+        handler.handle_key(None, KEY_ENTER_CARRIAGE)
 
     assert mock_run.called
     assert mock_run.call_args.kwargs.get("cwd") == os.path.realpath(str(root))

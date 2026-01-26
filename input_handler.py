@@ -7,6 +7,7 @@ import subprocess
 from typing import List
 
 import config
+from keys import is_ctrl_j, is_enter
 
 
 class InputHandler:
@@ -481,7 +482,7 @@ class InputHandler:
         self.nav.need_redraw = True
 
     def _handle_command_mode_key(self, key: int) -> None:
-        if key in (10, 13, curses.KEY_ENTER):
+        if is_enter(key):
             command = self.nav.command_buffer.strip()
             self.nav.command_buffer = ""
             self._execute_command(command)
@@ -971,12 +972,12 @@ class InputHandler:
             self.nav.help_scroll = min(max_scroll, self.nav.help_scroll + 1)
             self.nav.need_redraw = True
             return True
-        if key in (curses.KEY_SR, 11):  # Ctrl+K
+        if key in (curses.KEY_SR, 11):  # Ctrl+K / Shift+Up
             jump = max(1, max_visible // 2)
             self.nav.help_scroll = max(0, self.nav.help_scroll - jump)
             self.nav.need_redraw = True
             return True
-        if key in (curses.KEY_SF, 10):  # Ctrl+J
+        if is_ctrl_j(key):  # Ctrl+J / Shift+Down
             jump = max(1, max_visible // 2)
             self.nav.help_scroll = min(max_scroll, self.nav.help_scroll + jump)
             self.nav.need_redraw = True
@@ -1082,7 +1083,7 @@ class InputHandler:
             return False
 
         if self.in_filter_mode:
-            if key in (10, 13, curses.KEY_ENTER):
+            if is_enter(key):
                 self.in_filter_mode = False
                 pattern = self.nav.dir_manager.filter_pattern.lstrip("/")
                 self.nav.dir_manager.filter_pattern = pattern if pattern else ""
@@ -1180,7 +1181,7 @@ class InputHandler:
             ):
                 return False
 
-        if key in (10, 13, curses.KEY_ENTER):
+        if is_enter(key):
             if self.nav.layout_mode == "list":
                 self.nav.enter_matrix_mode()
             else:
@@ -1481,9 +1482,9 @@ class InputHandler:
             self._move_selection(total, -1)
         elif key == curses.KEY_DOWN and total > 0:
             self._move_selection(total, 1)
-        elif key in (curses.KEY_SR, 11):  # Ctrl+K
+        elif key in (curses.KEY_SR, 11):  # Ctrl+K / Shift+Up
             self._jump_selection(total, "up")
-        elif key in (curses.KEY_SF, 10):  # Ctrl+J
+        elif is_ctrl_j(key):  # Ctrl+J / Shift+Down
             self._jump_selection(total, "down")
         elif key == curses.KEY_LEFT:
             parent = os.path.dirname(self.nav.dir_manager.current_path)

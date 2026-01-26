@@ -105,6 +105,9 @@ def test_run_invokes_curses_wrapper_and_cleanup(monkeypatch):
 
     monkeypatch.setattr(curses, "wrapper", lambda func: func(fake_screen))
     monkeypatch.setattr(curses, "curs_set", lambda *args, **kwargs: None)
+    monkeypatch.setattr(curses, "noecho", lambda *args, **kwargs: None)
+    monkeypatch.setattr(curses, "raw", lambda *args, **kwargs: None)
+    monkeypatch.setattr(curses, "nonl", lambda *args, **kwargs: None)
     monkeypatch.setattr(curses, "start_color", lambda *args, **kwargs: None)
     monkeypatch.setattr(curses, "use_default_colors", lambda *args, **kwargs: None)
     monkeypatch.setattr(curses, "init_pair", lambda *args, **kwargs: None)

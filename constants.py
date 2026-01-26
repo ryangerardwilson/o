@@ -4,7 +4,7 @@ class Constants:
 VIOS CHEATSHEET
 
 Navigation
-  Enter           Toggle Matrix (default) ↔ List view
+  Enter (Return)  Toggle Matrix (default) ↔ List view
 
   -- Matrix mode --
   h               Move left across streams

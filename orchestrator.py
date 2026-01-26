@@ -27,6 +27,12 @@ class Orchestrator:
 
         curses.curs_set(0)
         try:
+            curses.noecho()
+            curses.raw()
+            curses.nonl()
+        except curses.error:
+            pass
+        try:
             curses.start_color()
             curses.use_default_colors()
         except Exception:
