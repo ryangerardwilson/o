@@ -309,7 +309,7 @@ class InputHandler:
 
     def _compute_context_scope(self, items, selected_index):
         if not items or selected_index < 0 or selected_index >= len(items):
-            return (None, None)
+            return (None, None, None)
 
         _, is_dir, selected_path, depth = items[selected_index]
         context_index = None
@@ -320,12 +320,12 @@ class InputHandler:
             context_index = selected_index
 
         if context_index is None:
-            return (None, None)
+            return (None, None, None)
 
         context_entry = items[context_index]
         context_path = os.path.realpath(context_entry[2])
         scope_range = self._find_scope_range_for_directory(items, context_index)
-        return (context_path, scope_range)
+        return (context_path, scope_range, context_index)
 
     def _find_context_directory_index(self, items, selected_index):
         if selected_index < 0 or selected_index >= len(items):
@@ -827,6 +827,7 @@ class InputHandler:
         target_dir = self.nav.dir_manager.current_path
         context_path = None
         scope_range = None
+        context_index = None
 
         if total == 0:
             self.nav.browser_selected = 0
@@ -836,11 +837,16 @@ class InputHandler:
             )
             selection = display_items[self.nav.browser_selected]
             selected_name, selected_is_dir, selected_path, _ = selection
-            target_dir = self._determine_target_directory(
-                selected_path, selected_is_dir
-            )
-            context_path, scope_range = self._compute_context_scope(
+            context_path, scope_range, context_index = self._compute_context_scope(
                 display_items, self.nav.browser_selected
+            )
+            target_dir = self._determine_target_directory(
+                selected_path,
+                selected_is_dir,
+                selected_index=self.nav.browser_selected,
+                context_path=context_path,
+                context_index=context_index,
+                scope_range=scope_range,
             )
 
         if key == ord(","):
@@ -1303,14 +1309,49 @@ class InputHandler:
             self._flash()
             return False
 
-    def _determine_target_directory(self, selected_path, selected_is_dir):
-        if selected_path:
-            if selected_is_dir:
-                return selected_path
-            parent = os.path.dirname(selected_path)
-            if parent:
-                return parent
-        return self.nav.dir_manager.current_path
+    def _determine_target_directory(
+        self,
+        _selected_path,
+        _selected_is_dir,
+        *,
+        selected_index: int | None = None,
+        context_path: str | None = None,
+        context_index: int | None = None,
+        scope_range=None,
+    ):
+        current_dir = self.nav.dir_manager.current_path
+
+        if (
+            selected_index is not None
+            and context_path
+            and scope_range
+            and self._is_directory_expanded(context_path)
+        ):
+            start, end = scope_range
+            if (
+                start is not None
+                and end is not None
+                and start <= selected_index <= end
+                and (context_index is None or selected_index > context_index)
+            ):
+                return context_path
+
+        return current_dir
+
+    def _is_directory_expanded(self, path: str) -> bool:
+        if not path:
+            return False
+        expanded = getattr(self.nav, "expanded_nodes", set())
+        if path in expanded:
+            return True
+        real_target = os.path.realpath(path)
+        for entry in expanded:
+            try:
+                if os.path.realpath(entry) == real_target:
+                    return True
+            except Exception:
+                continue
+        return False
 
     def _get_unique_name(self, dest_dir: str, base_name: str) -> str:
         dest_path = os.path.join(dest_dir, base_name)
