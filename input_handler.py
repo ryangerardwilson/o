@@ -1080,6 +1080,11 @@ class InputHandler:
             return False
 
         if key == ord("y"):
+            if self.pending_operator is None and self.nav.marked_items:
+                handled = self._stage_marked_to_clipboard(cut=False)
+                if handled:
+                    self._record_repeat_sequence([ord("y")])
+                    return False
             self.pending_operator = "y"
             self.operator_timestamp = time.time()
             return False
