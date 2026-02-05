@@ -531,11 +531,7 @@ class InputHandler:
             if not lines:
                 lines = ["(no output)"]
 
-        self.nav.command_popup_lines = lines
-        self.nav.command_popup_header = message
-        self.nav.command_popup_scroll = 0
-        self.nav.command_popup_view_rows = 0
-        self.nav.command_popup_visible = True
+        self.nav.open_command_popup(message, lines)
 
         if notify_dirs and hasattr(self.nav, "notify_directory_changed"):
             self.nav.notify_directory_changed()
@@ -668,52 +664,68 @@ class InputHandler:
         return False
 
     def _handle_command_popup_key(self, key) -> bool:
-        lines = getattr(self.nav, "command_popup_lines", []) or []
-        visible = max(1, getattr(self.nav, "command_popup_view_rows", 1))
-        max_scroll = max(0, len(lines) - visible)
+        job = getattr(self.nav, "active_execution_job", None)
 
-        if key in (27, ord("q")):
+        if key == 27:
+            if job and callable(getattr(job, "is_running", None)) and job.is_running():
+                try:
+                    job.terminate()
+                    display = getattr(job, "display", "execution")
+                    self.nav.update_command_popup_header(f"Cancelling: {display}")
+                except Exception:
+                    self._flash()
+                return True
             self._close_command_popup()
             return True
 
+        if key == ord("q"):
+            if job and callable(getattr(job, "is_running", None)) and job.is_running():
+                return True
+            self._close_command_popup()
+            return True
+
+        with self.nav.command_popup_lock:
+            lines = list(self.nav.command_popup_lines or [])
+            visible = max(1, self.nav.command_popup_view_rows or 1)
+            max_scroll = max(0, len(lines) - visible)
+            current_scroll = self.nav.command_popup_scroll
+
         if key in (ord("j"), curses.KEY_DOWN):
-            new_scroll = min(max_scroll, self.nav.command_popup_scroll + 1)
-            if new_scroll != self.nav.command_popup_scroll:
-                self.nav.command_popup_scroll = new_scroll
+            new_scroll = min(max_scroll, current_scroll + 1)
+            if new_scroll != current_scroll:
+                with self.nav.command_popup_lock:
+                    self.nav.command_popup_scroll = new_scroll
                 self.nav.need_redraw = True
             return True
 
         if key in (ord("k"), curses.KEY_UP):
-            new_scroll = max(0, self.nav.command_popup_scroll - 1)
-            if new_scroll != self.nav.command_popup_scroll:
-                self.nav.command_popup_scroll = new_scroll
+            new_scroll = max(0, current_scroll - 1)
+            if new_scroll != current_scroll:
+                with self.nav.command_popup_lock:
+                    self.nav.command_popup_scroll = new_scroll
                 self.nav.need_redraw = True
             return True
 
         if key in (curses.KEY_NPAGE,):
-            new_scroll = min(max_scroll, self.nav.command_popup_scroll + visible)
-            if new_scroll != self.nav.command_popup_scroll:
-                self.nav.command_popup_scroll = new_scroll
+            new_scroll = min(max_scroll, current_scroll + visible)
+            if new_scroll != current_scroll:
+                with self.nav.command_popup_lock:
+                    self.nav.command_popup_scroll = new_scroll
                 self.nav.need_redraw = True
             return True
 
         if key in (curses.KEY_PPAGE,):
-            new_scroll = max(0, self.nav.command_popup_scroll - visible)
-            if new_scroll != self.nav.command_popup_scroll:
-                self.nav.command_popup_scroll = new_scroll
+            new_scroll = max(0, current_scroll - visible)
+            if new_scroll != current_scroll:
+                with self.nav.command_popup_lock:
+                    self.nav.command_popup_scroll = new_scroll
                 self.nav.need_redraw = True
             return True
 
         return True
 
     def _close_command_popup(self) -> None:
-        self.nav.command_popup_visible = False
-        self.nav.command_popup_lines = []
-        self.nav.command_popup_header = ""
-        self.nav.command_popup_scroll = 0
-        self.nav.command_popup_view_rows = 0
-        self.nav.status_message = ""
-        self.nav.need_redraw = True
+        self.nav.close_command_popup()
 
     def _key_to_char(self, key):
         if 32 <= key <= 126:
@@ -868,6 +880,17 @@ class InputHandler:
                 display_items,
             ):
                 return False
+
+        if key == ord("e"):
+            if not selection or not selected_path or selected_is_dir:
+                self.nav.status_message = "Select a file to execute"
+                self._flash()
+                self.nav.need_redraw = True
+                return False
+            self.nav.exit_visual_mode()
+            if not self.nav.file_actions.run_execution(selected_path):
+                self._flash()
+            return False
 
         if is_enter(key):
             if self.nav.layout_mode == "list":

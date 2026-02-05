@@ -1,14 +1,30 @@
 import json
 import os
 import shlex
+import shutil
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple
+
+
+@dataclass
+class ExecutorsSpec:
+    python: List[str] = field(default_factory=list)
+    shell: List[str] = field(default_factory=list)
+
+    def get(self, name: str) -> List[str]:
+        if name == "python":
+            return list(self.python)
+        if name == "shell":
+            return list(self.shell)
+        return []
 
 
 @dataclass
 class UserConfig:
     matrix_mode: bool = False
     handlers: Dict[str, "HandlerSpec"] = field(default_factory=dict)
+    executors: ExecutorsSpec = field(default_factory=ExecutorsSpec)
     warnings: List[str] = field(default_factory=list)
 
     def get_handler_commands(self, name: str) -> List[List[str]]:
@@ -19,6 +35,9 @@ class UserConfig:
         if spec is None:
             return HandlerSpec(commands=[], is_internal=False)
         return spec
+
+    def get_executor(self, name: str) -> List[str]:
+        return self.executors.get(name)
 
 
 @dataclass
@@ -98,6 +117,63 @@ def _normalize_handler_commands(raw_value) -> List[List[str]]:
     return commands
 
 
+def _default_python_executor() -> List[str]:
+    candidates: List[str] = []
+
+    exe = sys.executable
+    if exe:
+        exe_path = os.path.realpath(exe)
+        if os.path.isfile(exe_path) and os.access(exe_path, os.X_OK):
+            candidates.append(exe_path)
+
+    for name in ("python3", "python"):
+        path = shutil.which(name)
+        if path and path not in candidates:
+            candidates.append(path)
+
+    if not candidates:
+        return []
+
+    # Use the first candidate and split into command tokens
+    return _normalize_command(candidates[0])
+
+
+def _default_shell_executor() -> List[str]:
+    for command in (["/bin/bash", "-lc"], ["/bin/sh", "-c"]):
+        shell_path = command[0]
+        if shutil.which(shell_path):
+            return list(command)
+    return []
+
+
+def _normalize_executors(raw_value) -> Tuple[ExecutorsSpec, List[str]]:
+    warnings: List[str] = []
+    python_cmd: List[str] = []
+    shell_cmd: List[str] = []
+
+    if isinstance(raw_value, dict):
+        if "python" in raw_value:
+            python_cmd = _normalize_command(raw_value.get("python"))
+            if not python_cmd:
+                warnings.append("Invalid python executor configuration; falling back to defaults")
+        if "shell" in raw_value:
+            shell_cmd = _normalize_command(raw_value.get("shell"))
+            if not shell_cmd:
+                warnings.append("Invalid shell executor configuration; falling back to defaults")
+
+    if not python_cmd:
+        python_cmd = _default_python_executor()
+        if not python_cmd:
+            warnings.append("No python executor available; Python execution disabled")
+
+    if not shell_cmd:
+        shell_cmd = _default_shell_executor()
+        if not shell_cmd:
+            warnings.append("No shell executor available; shell execution disabled")
+
+    return ExecutorsSpec(python=python_cmd, shell=shell_cmd), warnings
+
+
 def load_user_config() -> UserConfig:
     path = _config_path()
     data = {}
@@ -117,6 +193,8 @@ def load_user_config() -> UserConfig:
     warnings: List[str] = []
 
     handlers = _normalize_handlers(data.get("handlers", {}))
+    executors, executor_warnings = _normalize_executors(data.get("executors", {}))
+    warnings.extend(executor_warnings)
 
     deprecated_keys = (
         "file_shortcuts",
@@ -136,6 +214,7 @@ def load_user_config() -> UserConfig:
     return UserConfig(
         matrix_mode=matrix_mode,
         handlers=handlers,
+        executors=executors,
         warnings=warnings,
     )
 

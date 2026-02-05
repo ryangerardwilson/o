@@ -177,21 +177,26 @@ class UIRenderer:
         return "  ".join(parts)
 
     def _render_command_popup(self, stdscr: Any, max_y: int, max_x: int) -> None:
-        lines = getattr(self.nav, "command_popup_lines", []) or ["(no output)"]
-        header = getattr(self.nav, "command_popup_header", "Command Output")
-        total_lines = len(lines)
-        if total_lines == 0:
+        with self.nav.command_popup_lock:
+            lines = list(self.nav.command_popup_lines or [])
+            header = self.nav.command_popup_header or "Command Output"
+            current_scroll = self.nav.command_popup_scroll
+
+        if not lines:
             lines = ["(no output)"]
-            total_lines = 1
+
+        total_lines = len(lines)
+
+        def _apply_scroll(scroll_value: int, view_rows: int) -> None:
+            with self.nav.command_popup_lock:
+                self.nav.command_popup_scroll = scroll_value
+                self.nav.command_popup_view_rows = view_rows
 
         def _render_compact() -> None:
             visible_rows = max(1, max_y - 1)
             max_scroll = max(0, total_lines - visible_rows)
-            scroll = max(
-                0, min(getattr(self.nav, "command_popup_scroll", 0), max_scroll)
-            )
-            self.nav.command_popup_scroll = scroll
-            self.nav.command_popup_view_rows = visible_rows
+            scroll = max(0, min(current_scroll, max_scroll))
+            _apply_scroll(scroll, visible_rows)
             visible = lines[scroll : scroll + visible_rows]
 
             for row in range(visible_rows):
@@ -207,7 +212,7 @@ class UIRenderer:
 
             footer = (
                 f"{header}  [{scroll + 1}-{min(total_lines, scroll + visible_rows)}/{total_lines}]"
-                "  j/k scroll  ESC close"
+                "  j/k scroll  ESC cancel/close"
             )
             self._render_status_bar(stdscr, footer, max_y, max_x, bold=False)
 
@@ -257,9 +262,8 @@ class UIRenderer:
             return
 
         max_scroll = max(0, total_lines - visible_rows)
-        scroll = max(0, min(getattr(self.nav, "command_popup_scroll", 0), max_scroll))
-        self.nav.command_popup_scroll = scroll
-        self.nav.command_popup_view_rows = visible_rows
+        scroll = max(0, min(current_scroll, max_scroll))
+        _apply_scroll(scroll, visible_rows)
         visible = lines[scroll : scroll + visible_rows]
 
         line_info = (
@@ -276,7 +280,7 @@ class UIRenderer:
         except curses.error:
             pass
 
-        instructions = "j/k scroll  ESC close"
+        instructions = "j/k scroll  ESC cancel/close"
         try:
             stdscr.addstr(footer_y, left + 1, " " * header_width)
             stdscr.addstr(footer_y, left + 2, instructions[: max(0, width - 4)])
@@ -293,7 +297,7 @@ class UIRenderer:
             except curses.error:
                 pass
 
-        footer = f"{header}  [{line_info}]  j/k scroll  ESC close"
+        footer = f"{header}  [{line_info}]  j/k scroll  ESC cancel/close"
         self._render_status_bar(stdscr, footer, max_y, max_x, bold=False)
 
     # ------------------------------------------------------------------

@@ -1,13 +1,64 @@
 import curses
 import mimetypes
 import os
+import selectors
 import shlex
 import shutil
 import subprocess
+import threading
+import time
 import zipfile
-from typing import Optional, cast, Any, List
+from typing import Optional, cast, Any, List, Tuple
 
 from config import HandlerSpec
+
+
+class ExecutionJob:
+    def __init__(self, filepath: str, command: List[str], display: str, mode: str):
+        self.filepath = filepath
+        self.command = command
+        self.display = display
+        self.mode = mode
+        self.process: Optional[subprocess.Popen[str]] = None
+        self.thread: Optional[threading.Thread] = None
+        self.cancelled = False
+        self.exit_code: Optional[int] = None
+        self.started_at = time.time()
+        self.done_event = threading.Event()
+
+    def is_running(self) -> bool:
+        if self.process is None:
+            return False
+        return self.process.poll() is None
+
+    def mark_process(self, process: subprocess.Popen[str]) -> None:
+        self.process = process
+
+    def mark_finished(self, exit_code: Optional[int]) -> None:
+        self.exit_code = exit_code
+        self.done_event.set()
+
+    def wait(self, timeout: Optional[float] = None) -> Optional[int]:
+        self.done_event.wait(timeout)
+        return self.exit_code
+
+    def terminate(self) -> None:
+        if self.process is None:
+            return
+        if self.process.poll() is not None:
+            return
+        self.cancelled = True
+        try:
+            self.process.terminate()
+        except Exception:
+            pass
+        try:
+            self.process.wait(timeout=2)
+        except Exception:
+            try:
+                self.process.kill()
+            except Exception:
+                pass
 
 
 class FileActionService:
@@ -407,6 +458,237 @@ class FileActionService:
             tokens.append(filepath)
 
         return tokens
+
+    def run_execution(self, filepath: str) -> bool:
+        if not filepath or not os.path.isfile(filepath):
+            self.nav.status_message = "Not a file"
+            curses.flash()
+            self.nav.need_redraw = True
+            return False
+
+        existing_job = getattr(self.nav, "active_execution_job", None)
+        if existing_job is not None and isinstance(existing_job, ExecutionJob) and existing_job.is_running():
+            self.nav.status_message = "Execution already in progress"
+            curses.flash()
+            self.nav.need_redraw = True
+            return False
+
+        command, mode, error = self._resolve_execution_command(filepath)
+        if not command:
+            self.nav.status_message = error or "Unable to execute file"
+            curses.flash()
+            self.nav.need_redraw = True
+            return False
+
+        assert mode is not None
+        mode_value = cast(str, mode)
+
+        cwd = os.path.dirname(filepath) or self.nav.dir_manager.current_path
+        display = shlex.join(command)
+        job = ExecutionJob(filepath, command, display, mode_value)
+
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+            )
+        except FileNotFoundError:
+            self.nav.status_message = f"Executor not found: {command[0]}"
+            curses.flash()
+            self.nav.need_redraw = True
+            return False
+        except Exception as exc:
+            self.nav.status_message = f"Failed to launch: {exc.__class__.__name__}"
+            curses.flash()
+            self.nav.need_redraw = True
+            return False
+
+        job.mark_process(process)
+        self.nav.set_active_execution_job(job)
+        header = f"Running: {display}  (ESC to cancel)"
+        self.nav.open_command_popup(header, [])
+
+        thread = threading.Thread(target=self._monitor_execution_job, args=(job,), daemon=True)
+        job.thread = thread
+        thread.start()
+        return True
+
+    def _resolve_execution_command(
+        self, filepath: str
+    ) -> Tuple[Optional[List[str]], Optional[str], Optional[str]]:
+        _, ext = os.path.splitext(filepath)
+        ext = ext.lower()
+
+        if ext == ".py":
+            python_cmd = self.nav.config.get_executor("python")
+            if not python_cmd:
+                return None, None, "Python executor unavailable"
+            tokens = self._prepare_python_command(python_cmd, filepath)
+            if not tokens:
+                return None, None, "Python executor misconfigured"
+            return tokens, "python", None
+
+        if ext:
+            return None, None, "File type not supported for execution"
+
+        if not os.access(filepath, os.X_OK):
+            return None, None, "File is not executable"
+
+        shell_cmd = self.nav.config.get_executor("shell")
+        if not shell_cmd:
+            return None, None, "Shell executor unavailable"
+        tokens = self._prepare_shell_command(shell_cmd, filepath)
+        if not tokens:
+            return None, None, "Shell executor misconfigured"
+        return tokens, "shell", None
+
+    def _prepare_python_command(self, base_cmd: List[str], filepath: str) -> List[str]:
+        return self._expand_command(base_cmd, filepath) or []
+
+    def _prepare_shell_command(self, base_cmd: List[str], filepath: str) -> List[str]:
+        if not base_cmd:
+            return []
+
+        target = os.path.basename(filepath)
+        if not target:
+            return []
+
+        relative_target = f"./{target}"
+        quoted_target = shlex.quote(relative_target)
+
+        tokens: List[str] = []
+        has_placeholder = False
+
+        for part in base_cmd:
+            if not isinstance(part, str):
+                continue
+            if "{file}" in part:
+                has_placeholder = True
+                tokens.append(part.replace("{file}", quoted_target))
+            else:
+                tokens.append(part)
+
+        if not tokens:
+            return []
+
+        if not has_placeholder:
+            tokens.append(quoted_target)
+
+        return tokens
+
+    def _monitor_execution_job(self, job: ExecutionJob) -> None:
+        process = job.process
+        if process is None:
+            return
+
+        selector = selectors.DefaultSelector()
+
+        def register_stream(stream, label):
+            if stream is None:
+                return
+            try:
+                selector.register(stream, selectors.EVENT_READ, data=label)
+            except Exception:
+                pass
+
+        register_stream(process.stdout, "stdout")
+        register_stream(process.stderr, "stderr")
+
+        try:
+            while True:
+                if process.poll() is not None and not selector.get_map():
+                    break
+
+                events = selector.select(timeout=0.1)
+
+                if not events:
+                    if process.poll() is not None:
+                        break
+                    continue
+
+                for key, _ in events:
+                    label = key.data
+                    stream = cast(Any, key.fileobj)
+                    try:
+                        chunk = stream.readline()  # type: ignore[attr-defined]
+                    except Exception:
+                        chunk = ""
+
+                    if not chunk:
+                        try:
+                            selector.unregister(stream)
+                        except Exception:
+                            pass
+                        continue
+
+                    line = chunk.rstrip("\n")
+                    formatted = self._format_stream_line(label, line)
+                    self.nav.append_command_popup_lines([formatted])
+
+            # Drain remaining buffered output after process finishes
+            for label, stream in (("stdout", process.stdout), ("stderr", process.stderr)):
+                if stream is None:
+                    continue
+                try:
+                    remaining = cast(Any, stream).read()  # type: ignore[attr-defined]
+                except Exception:
+                    remaining = ""
+                if not remaining:
+                    continue
+                for raw_line in remaining.splitlines():
+                    formatted = self._format_stream_line(label, raw_line.rstrip("\n"))
+                    self.nav.append_command_popup_lines([formatted])
+        finally:
+            for stream in (process.stdout, process.stderr):
+                if stream and not stream.closed:
+                    try:
+                        stream.close()
+                    except Exception:
+                        pass
+            try:
+                selector.close()
+            except Exception:
+                pass
+
+        exit_code = process.poll()
+        if exit_code is None:
+            try:
+                exit_code = process.wait()
+            except Exception:
+                exit_code = process.returncode
+
+        job.mark_finished(exit_code)
+
+        if getattr(self.nav, "active_execution_job", None) is job:
+            self.nav.clear_active_execution_job()
+
+        with self.nav.command_popup_lock:
+            empty_output = len(self.nav.command_popup_lines) == 0
+
+        if empty_output:
+            self.nav.append_command_popup_lines(["(no output)"])
+
+        if job.cancelled:
+            header = f"Cancelled: {job.display}"
+        elif exit_code == 0:
+            header = f"Completed (exit 0): {job.display}"
+        else:
+            header = f"Failed (exit {exit_code}): {job.display}"
+
+        self.nav.update_command_popup_header(header)
+
+    @staticmethod
+    def _format_stream_line(channel: str, text: str) -> str:
+        if channel == "stderr":
+            return f"[stderr] {text}" if text else "[stderr]"
+        return text
 
     def create_new_file(self):
         filename = self._prompt_for_input("New file: ")

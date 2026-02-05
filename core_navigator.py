@@ -1,6 +1,7 @@
 # ~/Apps/vios/core_navigator.py
 import subprocess
 import os
+import threading
 from typing import Set, List, Optional
 
 from directory_manager import DirectoryManager
@@ -56,6 +57,9 @@ class FileNavigator:
         self.command_popup_header = ""
         self.command_popup_scroll = 0
         self.command_popup_view_rows = 0
+        self.command_popup_lock = threading.Lock()
+
+        self.active_execution_job = None
 
         if self.config.warnings and not self.status_message:
             self.status_message = self.config.warnings[0]
@@ -66,6 +70,47 @@ class FileNavigator:
 
     def open_file(self, filepath: str):
         self.file_actions.open_file(filepath)
+
+    def set_active_execution_job(self, job) -> None:
+        self.active_execution_job = job
+
+    def clear_active_execution_job(self) -> None:
+        self.active_execution_job = None
+
+    def open_command_popup(self, header: str, lines: Optional[List[str]] = None) -> None:
+        if lines is None:
+            lines = []
+        with self.command_popup_lock:
+            self.command_popup_lines = list(lines)
+            self.command_popup_header = header
+            self.command_popup_scroll = 0
+            self.command_popup_view_rows = 0
+            self.command_popup_visible = True
+        self.status_message = header
+        self.need_redraw = True
+
+    def append_command_popup_lines(self, new_lines: List[str]) -> None:
+        if not new_lines:
+            return
+        with self.command_popup_lock:
+            self.command_popup_lines.extend(new_lines)
+        self.need_redraw = True
+
+    def update_command_popup_header(self, header: str) -> None:
+        with self.command_popup_lock:
+            self.command_popup_header = header
+        self.status_message = header
+        self.need_redraw = True
+
+    def close_command_popup(self) -> None:
+        with self.command_popup_lock:
+            self.command_popup_visible = False
+            self.command_popup_lines = []
+            self.command_popup_header = ""
+            self.command_popup_scroll = 0
+            self.command_popup_view_rows = 0
+        self.status_message = ""
+        self.need_redraw = True
 
     def copy_current_path(self):
         current_dir = self.dir_manager.current_path

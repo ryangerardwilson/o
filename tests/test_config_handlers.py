@@ -8,7 +8,12 @@ from pathlib import Path
 from typing import Dict, Any
 
 import config
-from config import HandlerSpec, _normalize_handlers
+from config import (
+    HandlerSpec,
+    ExecutorsSpec,
+    _normalize_executors,
+    _normalize_handlers,
+)
 
 
 def test_legacy_handler_entries_default_to_external():
@@ -83,3 +88,44 @@ def test_load_user_config_ignores_deprecated_shortcuts(tmp_path: Path, monkeypat
     assert "workspace_shortcuts" in warning_text
     assert "browser_setup" in warning_text
     assert "browser_shortcuts" in warning_text
+
+
+def test_normalize_executors_from_config(monkeypatch):
+    def fake_default_python():
+        return ["/usr/bin/python3"]
+
+    def fake_default_shell():
+        return ["/bin/bash", "-lc"]
+
+    monkeypatch.setattr(config, "_default_python_executor", fake_default_python)
+    monkeypatch.setattr(config, "_default_shell_executor", fake_default_shell)
+
+    executors_spec, warnings = _normalize_executors(
+        {
+            "python": "/opt/venv/bin/python",
+            "shell": ["/usr/bin/env", "bash", "-lc"],
+        }
+    )
+
+    assert isinstance(executors_spec, ExecutorsSpec)
+    assert executors_spec.python == ["/opt/venv/bin/python"]
+    assert executors_spec.shell == ["/usr/bin/env", "bash", "-lc"]
+    assert warnings == []
+
+
+def test_normalize_executors_with_fallbacks(monkeypatch):
+    def fake_default_python():
+        return ["/usr/local/bin/python3"]
+
+    def fake_default_shell():
+        return ["/bin/dash", "-c"]
+
+    monkeypatch.setattr(config, "_default_python_executor", fake_default_python)
+    monkeypatch.setattr(config, "_default_shell_executor", fake_default_shell)
+
+    executors_spec, warnings = _normalize_executors({"python": 12, "shell": None})
+
+    assert executors_spec.python == ["/usr/local/bin/python3"]
+    assert executors_spec.shell == ["/bin/dash", "-c"]
+    assert any("Invalid python executor" in w for w in warnings)
+    assert any("Invalid shell executor" in w for w in warnings)

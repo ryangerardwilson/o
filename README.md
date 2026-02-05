@@ -115,6 +115,7 @@ python main.py
   - Text files (`.py`, `.txt`, `.md`, etc.) → opened in **Vim**
   - PDF files → opened in **Zathura** (if available)
   - Image files → opened externally via **swayimg**
+  - `e` — Execute the selected file using the configured Python or shell executor; output streams in a popup (`Esc` cancels)
 - **Terminal Integration**:
   - `t` — Open terminal (Alacritty preferred, falls back to default) in current 
     directory
@@ -236,6 +237,10 @@ Supported options:
   when the app launches.
 - `handlers` — map of programs to launch for specific file types. Each entry can
   be either the legacy list-of-commands or the richer object form shown below.
+- `executors` — optional commands used by the `e` shortcut. Provide `python`
+  (list or string) for `.py` files and `shell` for extensionless executables. If
+  omitted, `o` will attempt to discover a Python interpreter and fall back to
+  `/bin/bash -lc` for shell execution.
   ```json
   {
     "handlers": {
@@ -244,6 +249,10 @@ Supported options:
       "csv_viewer": { "commands": [["vixl"]], "is_internal": true },
       "parquet_viewer": { "commands": [["vixl"]], "is_internal": true },
       "editor": { "commands": [["vim"]] }
+    },
+    "executors": {
+      "python": "/home/ryan/Venv/bin/python",
+      "shell": "/bin/bash -lc"
     }
   }
   ```
@@ -257,6 +266,7 @@ Supported options:
     `is_internal` to `true` if you prefer terminal-native tools that should take
     over the current UI.
   - `editor` (optional) overrides the fallback editor used for other files.
+- `executors` configure the `e` shortcut; omit to let `o` discover interpreters automatically.
 If a handler command or mapping is missing, `o` simply leaves the file unopened.
 Configure viewers/editors explicitly to control how files launch.
 
@@ -270,6 +280,10 @@ Reference template:
     "image_viewer": { "commands": [["feh"]] },
     "csv_viewer": { "commands": [["libreoffice", "--calc"]] },
     "parquet_viewer": { "commands": [["db-browser-for-sqlite"]] }
+  },
+  "executors": {
+    "python": "/usr/bin/python3",
+    "shell": "/bin/bash -lc"
   }
 }
 ```
