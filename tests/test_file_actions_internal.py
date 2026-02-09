@@ -33,8 +33,17 @@ def test_invoke_handler_uses_internal_runner_when_flagged():
 
     spec = HandlerSpec(commands=[["vixl"]], is_internal=True)
 
-    with patch.object(service, "_run_internal_handler", return_value=True) as mock_internal, patch.object(service, "_run_terminal_handlers", return_value=False) as mock_terminal:
-        result = service._invoke_handler(spec, "example.csv", default_strategy="terminal")
+    with (
+        patch.object(
+            service, "_run_internal_handler", return_value=True
+        ) as mock_internal,
+        patch.object(
+            service, "_run_terminal_handlers", return_value=False
+        ) as mock_terminal,
+    ):
+        result = service._invoke_handler(
+            spec, "example.csv", default_strategy="terminal"
+        )
 
     assert result is True
     mock_internal.assert_called_once()
@@ -47,8 +56,17 @@ def test_invoke_handler_delegates_to_terminal_when_external():
 
     spec = HandlerSpec(commands=[["vixl"]], is_internal=False)
 
-    with patch.object(service, "_run_terminal_handlers", return_value=True) as mock_terminal, patch.object(service, "_run_internal_handler", return_value=False) as mock_internal:
-        result = service._invoke_handler(spec, "example.csv", default_strategy="terminal")
+    with (
+        patch.object(
+            service, "_run_terminal_handlers", return_value=True
+        ) as mock_terminal,
+        patch.object(
+            service, "_run_internal_handler", return_value=False
+        ) as mock_internal,
+    ):
+        result = service._invoke_handler(
+            spec, "example.csv", default_strategy="terminal"
+        )
 
     assert result is True
     mock_terminal.assert_called_once()

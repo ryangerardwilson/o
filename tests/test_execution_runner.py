@@ -1,4 +1,3 @@
-import os
 import threading
 from types import SimpleNamespace
 
@@ -10,7 +9,9 @@ class DummyNavigator:
     def __init__(self, base_path: str, python_cmd, shell_cmd):
         self.dir_manager = SimpleNamespace(current_path=base_path)
         self.config = SimpleNamespace(
-            get_executor=lambda name: python_cmd if name == "python" else shell_cmd if name == "shell" else []
+            get_executor=lambda name: (
+                python_cmd if name == "python" else shell_cmd if name == "shell" else []
+            )
         )
         self.status_message = ""
         self.need_redraw = False
@@ -51,7 +52,18 @@ class DummyNavigator:
 
 
 class DummyPopen:
-    def __init__(self, command, cwd=None, stdout=None, stderr=None, stdin=None, text=None, encoding=None, errors=None, bufsize=None):
+    def __init__(
+        self,
+        command,
+        cwd=None,
+        stdout=None,
+        stderr=None,
+        stdin=None,
+        text=None,
+        encoding=None,
+        errors=None,
+        bufsize=None,
+    ):
         self.args = command
         self.cwd = cwd
         self.stdout = None
@@ -119,7 +131,9 @@ def test_run_execution_launches_job(monkeypatch, tmp_path):
         self.nav.update_command_popup_header(f"Completed (exit 0): {job.display}")
         self.nav.clear_active_execution_job()
 
-    monkeypatch.setattr(file_actions.FileActionService, "_monitor_execution_job", fake_monitor)
+    monkeypatch.setattr(
+        file_actions.FileActionService, "_monitor_execution_job", fake_monitor
+    )
     monkeypatch.setattr(file_actions.subprocess, "Popen", DummyPopen)
 
     launched = service.run_execution(str(target))

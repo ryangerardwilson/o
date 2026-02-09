@@ -77,7 +77,9 @@ class FileNavigator:
     def clear_active_execution_job(self) -> None:
         self.active_execution_job = None
 
-    def open_command_popup(self, header: str, lines: Optional[List[str]] = None) -> None:
+    def open_command_popup(
+        self, header: str, lines: Optional[List[str]] = None
+    ) -> None:
         if lines is None:
             lines = []
         with self.command_popup_lock:

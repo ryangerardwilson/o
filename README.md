@@ -1,11 +1,10 @@
 # o
 
-o is a lightweight, Vim-inspired directory browser for your terminal.
-Navigate directories, open files in your preferred editor, create new files,
-yank/cut/ paste, and launch terminals — all from a fast curses interface. By
-default `o` opens in a “Matrix” inspired view where each filesystem entry
-appears as a falling column; you can toggle back to the classic list view
-whenever you like.
+o is a lightweight, Vim-inspired directory browser for your terminal. Navigate
+directories, open files in your preferred editor, create new files, yank/cut/
+paste, and launch terminals — all from a fast curses interface. By default `o`
+opens in a “Matrix” inspired view where each filesystem entry appears as a
+falling column; you can toggle back to the classic list view whenever you like.
 
 Built with Python and curses, `o` turns your terminal into a "Vi-like Operating
 System" focused purely on efficient file management.
@@ -269,8 +268,8 @@ Supported options:
   - `editor` (optional) overrides the fallback editor used for other files.
 - `executors` configure the `e` shortcut; omit to let `o` discover interpreters automatically.
   - Works best for non-interactive scripts. Programs that expect an attached TTY, background daemons, or long-running TUIs are better launched via your terminal directly.
-If a handler command or mapping is missing, `o` simply leaves the file unopened.
-Configure viewers/editors explicitly to control how files launch.
+If a handler command or mapping is missing, `o` simply leaves the file
+unopened. Configure viewers/editors explicitly to control how files launch.
 
 Reference template:
 

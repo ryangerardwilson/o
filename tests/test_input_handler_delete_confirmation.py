@@ -188,7 +188,9 @@ def test_single_delete_confirm(handler, tmp_path):
     nav.browser_selected = 0
 
     prompts = []
-    nav.file_actions.prompt_confirmation = lambda message: prompts.append(message) or True
+    nav.file_actions.prompt_confirmation = lambda message: (
+        prompts.append(message) or True
+    )
 
     ih.handle_key(None, ord("x"))
 

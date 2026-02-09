@@ -39,8 +39,7 @@ def _open_terminal_impl(
         if command:
             if any("{cmd}" in token for token in launch_cmd):
                 launch_cmd = [
-                    token.replace("{cmd}", " ".join(command))
-                    for token in launch_cmd
+                    token.replace("{cmd}", " ".join(command)) for token in launch_cmd
                 ]
             else:
                 launch_cmd.extend(["-e"] + command)

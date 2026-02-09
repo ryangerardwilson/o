@@ -422,9 +422,7 @@ class FileActionService:
 
         return False
 
-    def _run_internal_handler(
-        self, handlers: List[List[str]], filepath: str
-    ) -> bool:
+    def _run_internal_handler(self, handlers: List[List[str]], filepath: str) -> bool:
         stdscr_opt = getattr(self.nav.renderer, "stdscr", None)
 
         if stdscr_opt is not None:
@@ -525,7 +523,11 @@ class FileActionService:
             return False
 
         existing_job = getattr(self.nav, "active_execution_job", None)
-        if existing_job is not None and isinstance(existing_job, ExecutionJob) and existing_job.is_running():
+        if (
+            existing_job is not None
+            and isinstance(existing_job, ExecutionJob)
+            and existing_job.is_running()
+        ):
             self.nav.status_message = "Execution already in progress"
             curses.flash()
             self.nav.need_redraw = True
@@ -573,7 +575,9 @@ class FileActionService:
         header = f"Running: {display}  (ESC to cancel)"
         self.nav.open_command_popup(header, [])
 
-        thread = threading.Thread(target=self._monitor_execution_job, args=(job,), daemon=True)
+        thread = threading.Thread(
+            target=self._monitor_execution_job, args=(job,), daemon=True
+        )
         job.thread = thread
         thread.start()
         return True
@@ -691,7 +695,10 @@ class FileActionService:
                     self.nav.append_command_popup_lines([formatted])
 
             # Drain remaining buffered output after process finishes
-            for label, stream in (("stdout", process.stdout), ("stderr", process.stderr)):
+            for label, stream in (
+                ("stdout", process.stdout),
+                ("stderr", process.stderr),
+            ):
                 if stream is None:
                     continue
                 try:

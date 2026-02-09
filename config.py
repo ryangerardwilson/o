@@ -4,7 +4,7 @@ import shlex
 import shutil
 import sys
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 
 @dataclass
@@ -155,11 +155,15 @@ def _normalize_executors(raw_value) -> Tuple[ExecutorsSpec, List[str]]:
         if "python" in raw_value:
             python_cmd = _normalize_command(raw_value.get("python"))
             if not python_cmd:
-                warnings.append("Invalid python executor configuration; falling back to defaults")
+                warnings.append(
+                    "Invalid python executor configuration; falling back to defaults"
+                )
         if "shell" in raw_value:
             shell_cmd = _normalize_command(raw_value.get("shell"))
             if not shell_cmd:
-                warnings.append("Invalid shell executor configuration; falling back to defaults")
+                warnings.append(
+                    "Invalid shell executor configuration; falling back to defaults"
+                )
 
     if not python_cmd:
         python_cmd = _default_python_executor()

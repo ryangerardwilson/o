@@ -136,7 +136,11 @@ class InputHandler:
         toggle_fn()
         self.nav.expanded_nodes.clear()
 
-        status = "Showing dotfiles" if getattr(self.nav.dir_manager, "show_hidden", False) else "Hiding dotfiles"
+        status = (
+            "Showing dotfiles"
+            if getattr(self.nav.dir_manager, "show_hidden", False)
+            else "Hiding dotfiles"
+        )
         self.nav.status_message = status
         self.nav.need_redraw = True
 
@@ -680,9 +684,7 @@ class InputHandler:
                     message += f" (warn: {refreshed.warnings[0]})"
                 self.nav.status_message = message
             except Exception:
-                self.nav.status_message = (
-                    f"Opened {pretty} in vim (reload failed)"
-                )
+                self.nav.status_message = f"Opened {pretty} in vim (reload failed)"
                 self._flash()
         else:
             self.nav.status_message = "Unable to launch vim for config"
@@ -1176,9 +1178,10 @@ class InputHandler:
                 self.nav.need_redraw = True
                 return False
             success, dirs = self._delete_entries(entries)
-            parent_dir = os.path.dirname(
-                selected_path or self.nav.dir_manager.current_path
-            ) or self.nav.dir_manager.current_path
+            parent_dir = (
+                os.path.dirname(selected_path or self.nav.dir_manager.current_path)
+                or self.nav.dir_manager.current_path
+            )
             if success:
                 label = self._format_deletion_label(*entry)
                 self.nav.status_message = f"Deleted {label}"
@@ -1557,7 +1560,9 @@ class InputHandler:
     def _entries_from_paths(self, paths) -> List[tuple[str, str, bool]]:
         entries: List[tuple[str, str, bool]] = []
         for full_path in sorted(paths):
-            entries.append(self._normalize_entry(full_path, None, os.path.isdir(full_path)))
+            entries.append(
+                self._normalize_entry(full_path, None, os.path.isdir(full_path))
+            )
         return entries
 
     def _format_deletion_label(self, path: str, name: str, is_dir: bool) -> str:
