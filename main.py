@@ -22,6 +22,7 @@ except Exception:  # pragma: no cover - fallback when running from source
 INSTALL_SH_URL = "https://raw.githubusercontent.com/ryangerardwilson/o/main/install.sh"
 
 REVEAL_ENV = "O_REVEAL_LAUNCHED"
+REVEAL_NO_SPAWN_ENV = "O_REVEAL_NO_SPAWN"
 
 os.environ.setdefault("ESCDELAY", "25")
 
@@ -276,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
     if (
         reveal_path
         and not os.environ.get(REVEAL_ENV)
+        and not os.environ.get(REVEAL_NO_SPAWN_ENV)
         and not (sys.stdin.isatty() or sys.stdout.isatty())
         and not os.environ.get("TERM")
     ):
