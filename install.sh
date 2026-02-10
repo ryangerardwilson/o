@@ -225,5 +225,10 @@ if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
 fi
 
+if command -v xdg-mime >/dev/null 2>&1; then
+  xdg-mime default o-reveal.desktop inode/directory >/dev/null 2>&1 || true
+  xdg-mime default o-reveal.desktop x-scheme-handler/file >/dev/null 2>&1 || true
+fi
+
 info "Installed ${APP^^} (${installed_label:-unknown}) to $INSTALL_DIR/$APP"
 info "Run: ${APP} -h"
