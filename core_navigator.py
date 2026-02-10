@@ -94,6 +94,8 @@ class FileNavigator:
         if reveal_path:
             self.reveal_target = os.path.realpath(reveal_path)
         if self.reveal_target:
+            self.layout_mode = "list"
+            self.reset_matrix_state()
             self._apply_reveal_selection()
 
         if self.picker_options and self.picker_options.extensions:
