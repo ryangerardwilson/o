@@ -2,7 +2,8 @@
 import subprocess
 import os
 import threading
-from typing import Set, List, Optional
+from dataclasses import dataclass
+from typing import Set, List, Optional, Iterable
 
 from directory_manager import DirectoryManager
 from clipboard_manager import ClipboardManager
@@ -13,8 +14,15 @@ from file_actions import FileActionService
 from config import USER_CONFIG
 
 
+@dataclass
+class PickerOptions:
+    allowed_type: str
+    extensions: List[str]
+    multi_select: bool
+
+
 class FileNavigator:
-    def __init__(self, start_path: str):
+    def __init__(self, start_path: str, picker_options: Optional[PickerOptions] = None):
         self.dir_manager = DirectoryManager(start_path)
         self.clipboard = ClipboardManager()
 
@@ -28,7 +36,15 @@ class FileNavigator:
         self.list_offset = 0
         self.need_redraw = True
         self.config = USER_CONFIG
-        self.layout_mode = "matrix" if self.config.matrix_mode else "list"
+        if picker_options is not None:
+            self.layout_mode = "list"
+        else:
+            self.layout_mode = "matrix" if self.config.matrix_mode else "list"
+
+        self.picker_options = picker_options
+        self.exit_requested = False
+        self.exit_reason = ""
+        self.selection_result: List[str] = []
 
         # Multi-mark support — now using full absolute paths
         self.marked_items = set()  # set of str (absolute paths)
@@ -68,8 +84,40 @@ class FileNavigator:
         self.command_history: List[str] = []
         self.command_history_index: Optional[int] = None
 
+        if self.picker_options and self.picker_options.extensions:
+            globs = [f"*.{ext}" for ext in self.picker_options.extensions]
+            self.dir_manager.filter_pattern = ",".join(globs)
+
     def open_file(self, filepath: str):
         self.file_actions.open_file(filepath)
+
+    def is_picker_mode(self) -> bool:
+        return self.picker_options is not None
+
+    def request_exit(self, selection: Optional[Iterable[str]], reason: str) -> None:
+        self.exit_requested = True
+        self.exit_reason = reason
+        self.selection_result = list(selection or [])
+
+    def is_path_selectable(self, path: str) -> bool:
+        if not self.picker_options:
+            return False
+        if not path or not os.path.exists(path):
+            return False
+        allowed = self.picker_options.allowed_type
+        if allowed == "dir":
+            return os.path.isdir(path)
+        if allowed == "file":
+            if not os.path.isfile(path):
+                return False
+            if self.picker_options.extensions:
+                _, ext = os.path.splitext(path)
+                ext = ext.lstrip(".").lower()
+                return ext in self.picker_options.extensions
+            return True
+        if allowed == "any":
+            return os.path.isfile(path) or os.path.isdir(path)
+        return False
 
     def set_active_execution_job(self, job) -> None:
         self.active_execution_job = job

@@ -95,6 +95,11 @@ class DirectoryManager:
             return pattern
         return pattern + "*"
 
+    def _split_patterns(self, pattern: str) -> List[str]:
+        raw = pattern.replace(";", ",")
+        parts = [part.strip() for part in raw.split(",")]
+        return [part for part in parts if part]
+
     def get_filtered_items(self):
         all_items = self.get_items()
 
@@ -112,12 +117,16 @@ class DirectoryManager:
             return all_items
 
         normalized = self._normalize_pattern(search_pattern)
-        pattern_lower = normalized.lower()
+        patterns = self._split_patterns(normalized)
+        if not patterns:
+            return all_items
+
+        lowered = [self._normalize_pattern(p).lower() for p in patterns if p]
 
         return [
             item
             for item in all_items
-            if fnmatch.fnmatch(item[0].lower(), pattern_lower)
+            if any(fnmatch.fnmatch(item[0].lower(), pat) for pat in lowered)
         ]
 
     def set_sort_mode(self, mode: str):

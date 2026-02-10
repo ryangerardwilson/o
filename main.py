@@ -9,6 +9,7 @@ import sys
 from typing import Sequence
 
 from orchestrator import Orchestrator
+from core_navigator import PickerOptions
 
 try:
     from _version import __version__
@@ -27,7 +28,12 @@ def _print_help() -> None:
         "  o            Launch the TUI\n"
         "  o -h         Show this help\n"
         "  o -v         Show installed version\n"
-        "  o -u         Reinstall latest release if a newer version exists"
+        "  o -u         Reinstall latest release if a newer version exists\n\n"
+        "Picker mode:\n"
+        "  -p [dir]     Start picker mode (defaults to ~/)\n"
+        "  -ld          Limit selection to directories\n"
+        "  -lf [exts]   Limit selection to files, optional extensions\n"
+        "  --multi             Allow multi-select via marks"
     )
 
 
@@ -66,29 +72,84 @@ def _run_upgrade() -> int:
     return bash_rc
 
 
-def _parse_args(argv: Sequence[str]) -> tuple[bool, bool, bool]:
+def _parse_args(
+    argv: Sequence[str],
+) -> tuple[bool, bool, bool, PickerOptions | None, str | None]:
     show_help = False
     show_version = False
     do_upgrade = False
+    picker_allowed: str | None = None
+    picker_mode = False
+    extensions: list[str] = []
+    multi_select = False
+    start_path: str | None = None
 
-    for arg in argv:
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
         if arg in {"-h", "--help"}:
             show_help = True
         elif arg in {"-v", "--version", "-V"}:
             show_version = True
         elif arg in {"-u", "--upgrade"}:
             do_upgrade = True
+        elif arg == "-p":
+            picker_mode = True
+            if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
+                i += 1
+                start_path = argv[i]
+        elif arg == "-ld":
+            if picker_allowed == "file":
+                raise ValueError("-ld cannot be used with -lf")
+            picker_allowed = "dir"
+        elif arg == "-lf":
+            if picker_allowed == "dir":
+                raise ValueError("-lf cannot be used with -ld")
+            picker_allowed = "file"
+            if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
+                i += 1
+                raw = argv[i]
+                parts = [
+                    part.strip().lstrip(".")
+                    for part in raw.replace(";", ",").split(",")
+                ]
+                extensions = sorted({part.lower() for part in parts if part})
+        elif arg == "--multi":
+            multi_select = True
         else:
             raise ValueError(f"Unknown flag '{arg}'")
-    return show_help, show_version, do_upgrade
+        i += 1
+
+    if any([picker_allowed, multi_select, start_path, extensions]):
+        if not picker_mode:
+            raise ValueError("Picker flags require -p")
+
+    if picker_mode:
+        if not start_path:
+            start_path = os.path.expanduser("~")
+        if picker_allowed is None:
+            picker_allowed = "any"
+
+    picker_options = None
+    if picker_mode:
+        picker_options = PickerOptions(
+            allowed_type=picker_allowed or "any",
+            extensions=extensions,
+            multi_select=multi_select,
+        )
+    return show_help, show_version, do_upgrade, picker_options, start_path
 
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
+    picker_options = None
+    start_path = None
 
     if args:
         try:
-            show_help, show_version, do_upgrade = _parse_args(args)
+            show_help, show_version, do_upgrade, picker_options, start_path = (
+                _parse_args(args)
+            )
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 1
@@ -102,9 +163,32 @@ def main(argv: list[str] | None = None) -> int:
         if do_upgrade:
             return _run_upgrade()
 
-    orchestrator = Orchestrator(start_path=os.getcwd())
+    start_dir = start_path or os.getcwd()
+    orchestrator = Orchestrator(start_path=start_dir, picker_options=picker_options)
     orchestrator.run()
+
+    if picker_options is not None:
+        navigator = orchestrator.navigator
+        selection = getattr(navigator, "selection_result", []) if navigator else []
+        if selection:
+            payload = "\n".join(selection) + "\n"
+            sys.stdout.write(payload)
+            _write_picker_cache(selection)
+            return 0
+        return 1
     return 0
+
+
+def _write_picker_cache(selection: list[str]) -> None:
+    cache_root = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+    cache_dir = os.path.join(cache_root, "o")
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_path = os.path.join(cache_dir, "picker-selection.txt")
+        with open(cache_path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(selection) + "\n")
+    except OSError:
+        return
 
 
 if __name__ == "__main__":

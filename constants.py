@@ -63,6 +63,11 @@ Other
   q               Quit the app
   Ctrl+C          Quit immediately
 
+Picker Mode
+  Enter           Confirm selection
+  Space           Toggle Matrix/List view
+  q               Cancel selection
+
 Leader Commands (press "," first)
   ,xr             Toggle inline expansion/collapse for selection
   ,xc             Collapse all inline expansions

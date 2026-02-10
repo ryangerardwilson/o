@@ -133,6 +133,29 @@ modal file browser without leaving the terminal.
 
 ## Usage
 
+### Picker mode
+
+Use picker mode when another app needs a file or directory selection via the
+terminal UI.
+
+```bash
+o -p
+o -p ~/Downloads
+o -p ~/Downloads -ld
+o -p ~/Downloads -lf "png,jpeg,JPG,PNG"
+```
+
+- `-p [dir]`: start picker mode (defaults to `~/` if omitted).
+- `-ld`: limit selection to directories only.
+- `-lf [exts]`: limit selection to files only; optional comma/semicolon separated extensions.
+- `--multi`: allow multi-select via marks (outputs all marked items).
+
+Picker mode always starts in list view. Use `Enter` to confirm the selection
+and `q` to cancel.
+
+Selections are printed to stdout and also written to `~/.cache/o/picker-
+selection.txt` (or `${XDG_CACHE_HOME}/o/picker-selection.txt`).
+
 ### Switching views
 
 - `Enter`: Toggle between Matrix (default) and list mode. (Note: use `l` to enter directories; `Enter` no longer opens files.)

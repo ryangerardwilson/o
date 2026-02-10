@@ -863,6 +863,46 @@ class InputHandler:
             return chr(key)
         return None
 
+    def _confirm_picker_selection(self, selection, display_items) -> bool:
+        if not getattr(self.nav, "picker_options", None):
+            return False
+        if not selection:
+            self.nav.status_message = "No selection"
+            self._flash()
+            self.nav.need_redraw = True
+            return False
+
+        selected_paths: List[str] = []
+        if self.nav.picker_options and self.nav.picker_options.multi_select:
+            if self.nav.marked_items:
+                selected_paths = sorted(self.nav.marked_items)
+            else:
+                selected_paths = [selection[2]]
+        else:
+            selected_paths = [selection[2]]
+
+        invalid = [
+            path for path in selected_paths if not self.nav.is_path_selectable(path)
+        ]
+        if invalid:
+            allowed = (
+                self.nav.picker_options.allowed_type
+                if self.nav.picker_options
+                else "file"
+            )
+            if allowed == "dir":
+                self.nav.status_message = "Select a directory"
+            elif allowed == "any":
+                self.nav.status_message = "Select a file or directory"
+            else:
+                self.nav.status_message = "Select a file"
+            self._flash()
+            self.nav.need_redraw = True
+            return False
+
+        self.nav.request_exit(selected_paths, reason="selected")
+        return True
+
     def handle_key(self, stdscr, key):
         if getattr(self.nav, "command_popup_visible", False):
             if self._handle_command_popup_key(key):
@@ -1028,11 +1068,23 @@ class InputHandler:
             return False
 
         if is_enter(key):
+            if getattr(self.nav, "picker_options", None):
+                if self._confirm_picker_selection(selection, display_items):
+                    return True
+                return False
             if self.nav.layout_mode == "list":
                 self.nav.enter_matrix_mode()
             else:
                 self.nav.enter_list_mode()
             return False
+
+        if key == ord(" "):
+            if getattr(self.nav, "picker_options", None):
+                if self.nav.layout_mode == "list":
+                    self.nav.enter_matrix_mode()
+                else:
+                    self.nav.enter_list_mode()
+                return False
 
         if key == 8:  # Ctrl+H
             self.nav.exit_visual_mode()

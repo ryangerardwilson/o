@@ -135,6 +135,9 @@ class UIRenderer:
         if mode_indicator:
             parts.append(mode_indicator)
 
+        if getattr(self.nav, "is_picker_mode", None) and self.nav.is_picker_mode():
+            parts.append("SELECT: Enter choose, q cancel")
+
         if not self.nav.show_help:
             parts.append("? help")
 
