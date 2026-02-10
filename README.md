@@ -27,6 +27,10 @@ The script downloads the `o-linux-x64.tar.gz` artifact, extracts it into
 directory to your `PATH` (unless you opt out) so you can just run `o` from any
 shell.
 
+The installer also creates a desktop entry for reveal mode and sets it as the
+default handler for directories and file URLs (so "Show in folder" can open
+`o` in a terminal).
+
 Installer flags of note:
 
 - `-v <x.y.z>`: install a specific tagged release (`v0.3.0`, etc.).
@@ -72,6 +76,8 @@ o -r file:///path/to/file
 ```
 
 - `-r <path>`: start in the parent directory (or the directory itself) and focus the target item.
+- Reveal mode always starts in list view. If `o` is launched without a TTY, it
+  spawns a detached terminal automatically.
 
 ### Picker mode
 
@@ -97,6 +103,10 @@ and `q` to cancel.
 
 Selections are printed to stdout and also written to `~/.cache/o/picker-
 selection.txt` (or `${XDG_CACHE_HOME}/o/picker-selection.txt`).
+
+Note: GNOME/Chrome file picker dialogs cannot be replaced with a terminal UI.
+Use reveal mode for "Show in folder" flows, and save mode for post-download
+moves.
 
 ### App developer integration
 
