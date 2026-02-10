@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import os
+import shlex
+import shutil
 import subprocess
 import sys
 from typing import Sequence
@@ -18,6 +20,8 @@ except Exception:  # pragma: no cover - fallback when running from source
     __version__ = "0.0.0"
 
 INSTALL_SH_URL = "https://raw.githubusercontent.com/ryangerardwilson/o/main/install.sh"
+
+REVEAL_ENV = "O_REVEAL_LAUNCHED"
 
 os.environ.setdefault("ESCDELAY", "25")
 
@@ -74,6 +78,57 @@ def _run_upgrade() -> int:
         return curl_rc
 
     return bash_rc
+
+
+def _launch_reveal_terminal(reveal_path: str) -> bool:
+    term_env = os.environ.get("TERMINAL")
+    commands = []
+    if term_env:
+        commands.append(shlex.split(term_env))
+    commands.extend(
+        [
+            [cmd]
+            for cmd in (
+                "alacritty",
+                "foot",
+                "kitty",
+                "wezterm",
+                "gnome-terminal",
+                "xterm",
+            )
+        ]
+    )
+
+    launch_env = dict(os.environ)
+    launch_env[REVEAL_ENV] = "1"
+    cmd_payload = ["o", "-r", reveal_path]
+
+    for cmd in commands:
+        if not cmd:
+            continue
+        if shutil.which(cmd[0]) is None:
+            continue
+        launch_cmd = list(cmd)
+        if any("{cmd}" in token for token in launch_cmd):
+            launch_cmd = [
+                token.replace("{cmd}", " ".join(cmd_payload)) for token in launch_cmd
+            ]
+        else:
+            launch_cmd.extend(["-e"] + cmd_payload)
+        try:
+            subprocess.Popen(
+                launch_cmd,
+                env=launch_env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                preexec_fn=os.setsid,
+            )
+            return True
+        except Exception:
+            continue
+
+    return False
 
 
 def _parse_args(
@@ -218,6 +273,10 @@ def main(argv: list[str] | None = None) -> int:
             return _run_upgrade()
 
     start_dir = start_path or os.getcwd()
+    if reveal_path and not os.environ.get(REVEAL_ENV):
+        if _launch_reveal_terminal(reveal_path):
+            return 0
+
     orchestrator = Orchestrator(
         start_path=start_dir,
         picker_options=picker_options,
