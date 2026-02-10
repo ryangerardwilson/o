@@ -59,78 +59,6 @@ cd o
 python main.py
 ```
 
----
-
-- **Dual UI Modes**
-  - **Matrix Mode** *(default)*: falling “raindrop” columns for each entry.
-    - Streams pause when focused, marked, or included in a visual selection.
-    - `h` / `l` move left/right across streams.
-    - `j` drills into the focused directory (or opens the file).
-    - `k` returns to the parent directory.
-    - `Ctrl+H` / `Ctrl+L` page left/right (jump selection).
-  - **List Mode**: classic Vim-like list.
-    - `j` / `k` move down/up.
-    - `h` goes to the parent directory.
-    - `l` enters directories or opens files.
-    - `Ctrl+J` / `Ctrl+K` jump roughly 10% down/up the list.
-  - `Enter` toggles between Matrix and list views at any time.
-- **Leader Commands (press `,` first)**
-  - `,xr` — Toggle inline expansion/collapse for the selected item
-  - `,xc` — Collapse all inline expansions in the current view
-  - `,xar` — Expand every directory (recursively) in view
-  - `,dot` — Toggle dotfile visibility
-  - `,conf` — Open your config in Vim and reload it
-  - `,j` / `,k` — Jump to bottom/top instantly
-  - `,sa` / `,sma` / `,smd` — Sorting shortcuts
-  - `,nf` — Create new file (no open)
-  - `,nd` — Create new directory
-  - `,rn` — Rename selected item
-  - `,b` — Toggle bookmark for the current directory
-  - `,cl` — Clear clipboard contents
-  - `,cm` — Clear all marks
-- **Repeat commands**
-  - `.` — Repeat the last repeatable command (`m`, `p`, `,xr`, `,xar`, `,dot`, `,conf`, `,nf`, `,nd`, `,rn`, `,b`)
-- **Powerful Filtering** (glob-style):
-  - `/` — Enter filter mode
-    - Type pattern (e.g., `rat`, `*.py`, `*test*`)
-    - Implicit `*` at end if no wildcards used
-    - Press `Enter` to apply and persist
-    - Press `/` again or `Esc` to cancel/clear
-  - `Ctrl+R` — Clear filter instantly
-  - `v` (immediately after `/`) — Launch Vim to edit the filter text; save and quit to apply, leave empty to clear
-- **Clipboard Operations**:
-  - `m` — Toggle mark to build a multi-select batch
-  - `y` — Yank all marked items into the clipboard immediately
-  - `yy` — Yank the current row into the clipboard
-  - `dd` — Cut marked items (or the current row) into the clipboard
-  - `Backspace` / `Delete` — Immediate cut (delete without yank)
-  - `x` — Prompt to delete marked items or the current selection (type `y` then `Enter` to confirm)
-  - `p` — Paste the clipboard into the selected directory (or next to the selected file)
-- **Visual Mode**:
-  - `v` — Enter visual mode anchored at the current row; press `v` again to add the highlighted range to your marks (supports multiple ranges)
-  - `j` / `k` — Extend or shrink the selection while in visual mode (list view)
-  - Matrix view freezes any streams included in the active visual selection
-  - `Esc` — Exit visual mode without adding the selection
-- **File Opening**:
-  - Text files (`.py`, `.txt`, `.md`, etc.) → opened in **Vim**
-  - PDF files → opened in **Zathura** (if available)
-  - Image files → opened externally via **swayimg**
-  - `e` — Execute the selected file using the configured Python or shell executor; output streams in a popup (`Esc` cancels). Ideal for quick scripts that do not require interactive input or backgrounding.
-- **Terminal Integration**:
-  - `t` — Open terminal (Alacritty preferred, falls back to default) in current
-    directory
-- **Help Screen**:
-  - `?` — Toggle full-screen cheatsheet
-- **Quit**:
-  - `Ctrl+C` — Exit the application
-- **Pretty Paths**: Displays `~` for home directory
-- **Minimal & Fast**: No external dependencies beyond Python standard library
-
-Perfect for tiling window manager users (Hyprland, sway, etc.) who want a fast,
-modal file browser without leaving the terminal.
-
----
-
 ## Usage
 
 ### Picker mode
@@ -157,6 +85,48 @@ and `q` to cancel.
 
 Selections are printed to stdout and also written to `~/.cache/o/picker-
 selection.txt` (or `${XDG_CACHE_HOME}/o/picker-selection.txt`).
+
+### App developer integration
+
+Use `o` as a lightweight picker/save UI from other apps by launching it in a
+terminal and reading the selection from stdout or the cache file. Picker and
+save modes both emit the final path(s) the same way.
+
+Picker route (`-p`):
+
+```bash
+o -p
+o -p ~/Downloads
+o -p ~/Downloads -ld
+o -p ~/Downloads -lf "png,jpeg,JPG,PNG"
+o -p ~/Downloads -m
+```
+
+- `-p [dir]` starts picker mode; defaults to `~/` if omitted.
+- `-ld` restricts selection to directories only.
+- `-lf [exts]` restricts selection to files only; optional comma/semicolon list.
+- `-m` enables multi-select output (one path per line).
+
+Save route (`-s`):
+
+```bash
+o -s
+o -s ~/Documents
+o -s ~/Documents -se "gtkv.html"
+```
+
+- `-s [dir]` starts save mode; defaults to `~/` if omitted.
+- `-se [exts]` optionally suggests/forces a save extension (comma/semicolon list).
+  If omitted, any extension is accepted.
+
+Selection delivery:
+
+- `stdout`: `o` prints the selected path(s), one per line.
+- Cache file: `~/.cache/o/picker-selection.txt`
+  (or `${XDG_CACHE_HOME}/o/picker-selection.txt`).
+- When multi-select is enabled, the cache file contains all selected paths.
+
+## Shortcuts and commands
 
 ### Switching views
 
