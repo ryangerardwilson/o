@@ -136,19 +136,21 @@ modal file browser without leaving the terminal.
 ### Picker mode
 
 Use picker mode when another app needs a file or directory selection via the
-terminal UI.
+terminal UI. Use save mode to pick a target path for saving.
 
 ```bash
 o -p
 o -p ~/Downloads
 o -p ~/Downloads -ld
 o -p ~/Downloads -lf "png,jpeg,JPG,PNG"
+o -s ~/Documents -lf "gtkv.html"
 ```
 
 - `-p [dir]`: start picker mode (defaults to `~/` if omitted).
+- `-s [dir]`: save mode (pick a destination path).
 - `-ld`: limit selection to directories only.
 - `-lf [exts]`: limit selection to files only; optional comma/semicolon separated extensions.
-- `--multi`: allow multi-select via marks (outputs all marked items).
+- `-m`: allow multi-select via marks (outputs all marked items).
 
 Picker mode always starts in list view. Use `Enter` to confirm the selection
 and `q` to cancel.

@@ -19,6 +19,7 @@ class PickerOptions:
     allowed_type: str
     extensions: List[str]
     multi_select: bool
+    mode: str
 
 
 class FileNavigator:
@@ -104,6 +105,8 @@ class FileNavigator:
             return False
         if not path or not os.path.exists(path):
             return False
+        if self.picker_options.mode == "save":
+            return os.path.isdir(path) or os.path.isfile(path)
         allowed = self.picker_options.allowed_type
         if allowed == "dir":
             return os.path.isdir(path)
@@ -118,6 +121,9 @@ class FileNavigator:
         if allowed == "any":
             return os.path.isfile(path) or os.path.isdir(path)
         return False
+
+    def prompt_for_input(self, prompt: str) -> Optional[str]:
+        return self.file_actions.prompt_for_input(prompt)
 
     def set_active_execution_job(self, job) -> None:
         self.active_execution_job = job

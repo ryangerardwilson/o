@@ -5,7 +5,7 @@ import time
 import shutil
 import subprocess
 import tempfile
-from typing import List
+from typing import List, Optional
 
 import config
 from keys import is_ctrl_j, is_enter
@@ -866,6 +866,8 @@ class InputHandler:
     def _confirm_picker_selection(self, selection, display_items) -> bool:
         if not getattr(self.nav, "picker_options", None):
             return False
+        if self.nav.picker_options.mode == "save":
+            return self._confirm_picker_save(selection)
         if not selection:
             self.nav.status_message = "No selection"
             self._flash()
@@ -902,6 +904,47 @@ class InputHandler:
 
         self.nav.request_exit(selected_paths, reason="selected")
         return True
+
+    def _confirm_picker_save(self, selection) -> bool:
+        picker = self.nav.picker_options
+        if picker is None:
+            return False
+
+        selected_path = None
+        selected_is_dir = False
+        if selection:
+            selected_path = selection[2]
+            selected_is_dir = selection[1]
+
+        base_dir = self.nav.dir_manager.current_path
+        candidate: Optional[str] = None
+
+        if selected_path and not selected_is_dir:
+            candidate = selected_path
+        else:
+            if selected_path and selected_is_dir:
+                base_dir = selected_path
+            name = self.nav.prompt_for_input("Save as: ")
+            if not name:
+                return False
+            candidate = os.path.join(base_dir, name)
+
+        candidate = os.path.abspath(candidate)
+        candidate = self._apply_save_extension(candidate)
+        self.nav.request_exit([candidate], reason="saved")
+        return True
+
+    def _apply_save_extension(self, path: str) -> str:
+        picker = self.nav.picker_options
+        if not picker or not picker.extensions:
+            return path
+        lowered = path.lower()
+        for ext in picker.extensions:
+            normalized = ext.lstrip(".").lower()
+            if lowered.endswith("." + normalized):
+                return path
+        suffix = picker.extensions[0].lstrip(".")
+        return path + "." + suffix
 
     def handle_key(self, stdscr, key):
         if getattr(self.nav, "command_popup_visible", False):

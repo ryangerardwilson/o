@@ -138,6 +138,9 @@ class FileActionService:
         result = input_str.strip()
         return result or None
 
+    def prompt_for_input(self, prompt: str) -> Optional[str]:
+        return self._prompt_for_input(prompt)
+
     def _prompt_for_confirmation(self, prompt: str) -> Optional[bool]:
         stdscr_opt = self.nav.renderer.stdscr
         if stdscr_opt is None:

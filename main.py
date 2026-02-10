@@ -31,9 +31,10 @@ def _print_help() -> None:
         "  o -u         Reinstall latest release if a newer version exists\n\n"
         "Picker mode:\n"
         "  -p [dir]     Start picker mode (defaults to ~/)\n"
+        "  -s [dir]     Save mode (pick output path)\n"
         "  -ld          Limit selection to directories\n"
         "  -lf [exts]   Limit selection to files, optional extensions\n"
-        "  --multi             Allow multi-select via marks"
+        "  -m           Allow multi-select via marks"
     )
 
 
@@ -82,6 +83,7 @@ def _parse_args(
     picker_mode = False
     extensions: list[str] = []
     multi_select = False
+    save_mode = False
     start_path: str | None = None
 
     i = 0
@@ -95,6 +97,11 @@ def _parse_args(
             do_upgrade = True
         elif arg == "-p":
             picker_mode = True
+            if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
+                i += 1
+                start_path = argv[i]
+        elif arg == "-s":
+            save_mode = True
             if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
                 i += 1
                 start_path = argv[i]
@@ -114,15 +121,24 @@ def _parse_args(
                     for part in raw.replace(";", ",").split(",")
                 ]
                 extensions = sorted({part.lower() for part in parts if part})
-        elif arg == "--multi":
+        elif arg == "-m":
             multi_select = True
         else:
             raise ValueError(f"Unknown flag '{arg}'")
         i += 1
 
+    if picker_mode and save_mode:
+        raise ValueError("-p cannot be used with -s")
+
     if any([picker_allowed, multi_select, start_path, extensions]):
-        if not picker_mode:
-            raise ValueError("Picker flags require -p")
+        if not picker_mode and not save_mode:
+            raise ValueError("Picker flags require -p or -s")
+
+    if save_mode and picker_allowed == "dir":
+        raise ValueError("-s cannot be used with -ld")
+
+    if save_mode and multi_select:
+        raise ValueError("-s cannot be used with -m")
 
     if picker_mode:
         if not start_path:
@@ -131,11 +147,12 @@ def _parse_args(
             picker_allowed = "any"
 
     picker_options = None
-    if picker_mode:
+    if picker_mode or save_mode:
         picker_options = PickerOptions(
             allowed_type=picker_allowed or "any",
             extensions=extensions,
             multi_select=multi_select,
+            mode="save" if save_mode else "pick",
         )
     return show_help, show_version, do_upgrade, picker_options, start_path
 
