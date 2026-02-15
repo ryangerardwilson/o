@@ -31,7 +31,7 @@ def _print_help() -> None:
     print(
         "o - Vim-inspired terminal file navigator\n\n"
         "Usage:\n"
-        "  o            Launch the TUI\n"
+        "  o [path]     Launch the TUI (optional start path)\n"
         "  o -h         Show this help\n"
         "  o -v         Show installed version\n"
         "  o -u         Reinstall latest release if a newer version exists\n"
@@ -145,6 +145,8 @@ def _parse_args(
     save_mode = False
     save_extensions_set = False
     start_path: str | None = None
+    picker_start_path: str | None = None
+    positional_path: str | None = None
     reveal_path: str | None = None
 
     i = 0
@@ -160,12 +162,12 @@ def _parse_args(
             picker_mode = True
             if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
                 i += 1
-                start_path = argv[i]
+                picker_start_path = argv[i]
         elif arg == "-s":
             save_mode = True
             if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
                 i += 1
-                start_path = argv[i]
+                picker_start_path = argv[i]
         elif arg == "-ld":
             if picker_allowed == "file":
                 raise ValueError("-ld cannot be used with -lf")
@@ -200,7 +202,11 @@ def _parse_args(
             i += 1
             reveal_path = argv[i]
         else:
-            raise ValueError(f"Unknown flag '{arg}'")
+            if arg.startswith("-"):
+                raise ValueError(f"Unknown flag '{arg}'")
+            if positional_path is not None:
+                raise ValueError("Only one start path is allowed")
+            positional_path = arg
         i += 1
 
     if picker_mode and save_mode:
@@ -209,10 +215,13 @@ def _parse_args(
     if reveal_path and (picker_mode or save_mode):
         raise ValueError("-r cannot be used with -p or -s")
 
+    if reveal_path and positional_path:
+        raise ValueError("-r cannot be used with a start path")
+
     if save_extensions_set and not save_mode:
         raise ValueError("-se requires -s")
 
-    if any([picker_allowed, multi_select, start_path, extensions]):
+    if any([picker_allowed, multi_select, extensions]) and not (picker_mode or save_mode):
         if not picker_mode and not save_mode:
             raise ValueError("Picker flags require -p or -s")
 
@@ -223,10 +232,15 @@ def _parse_args(
         raise ValueError("-s cannot be used with -m")
 
     if picker_mode or save_mode:
+        if picker_start_path and positional_path:
+            raise ValueError("Start path already provided for -p/-s")
+        start_path = picker_start_path or positional_path
         if not start_path:
             start_path = os.path.expanduser("~")
         if picker_allowed is None:
             picker_allowed = "any"
+    elif positional_path:
+        start_path = positional_path
 
     if reveal_path:
         parsed = urlparse(reveal_path)

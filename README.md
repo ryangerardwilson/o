@@ -61,6 +61,7 @@ hosts), clone the repository and launch `python main.py` directly:
 git clone https://github.com/ryangerardwilson/o.git
 cd o
 python main.py
+python main.py /path/to/start/dir
 ```
 
 ## Usage
