@@ -28,8 +28,8 @@ directory to your `PATH` (unless you opt out) so you can just run `o` from any
 shell.
 
 The installer also creates a desktop entry for reveal mode and sets it as the
-default handler for directories and file URLs (so "Show in folder" can open
-`o` in a terminal).
+default handler for directories and file URLs (so "Show in folder" can open `o`
+in a terminal).
 
 Installer flags of note:
 
@@ -68,7 +68,8 @@ python main.py /path/to/start/dir
 
 ### Reveal mode
 
-Open a folder and highlight a target item (useful for "Show in folder" integrations):
+Open a folder and highlight a target item (useful for "Show in folder"
+integrations):
 
 ```bash
 o -r /path/to/file

@@ -221,7 +221,9 @@ def _parse_args(
     if save_extensions_set and not save_mode:
         raise ValueError("-se requires -s")
 
-    if any([picker_allowed, multi_select, extensions]) and not (picker_mode or save_mode):
+    if any([picker_allowed, multi_select, extensions]) and not (
+        picker_mode or save_mode
+    ):
         if not picker_mode and not save_mode:
             raise ValueError("Picker flags require -p or -s")
 
@@ -271,9 +273,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args:
         try:
-            show_help, show_version, do_upgrade, picker_options, start_path, reveal_path = (
-                _parse_args(args)
-            )
+            (
+                show_help,
+                show_version,
+                do_upgrade,
+                picker_options,
+                start_path,
+                reveal_path,
+            ) = _parse_args(args)
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 1
