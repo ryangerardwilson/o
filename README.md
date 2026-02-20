@@ -206,7 +206,7 @@ Selection delivery:
 
 ### Quit
 
-- `q`: Quit the application.
+- `q` / `Ctrl+Q`: Quit the application.
 - `Ctrl+C`: Force quit.
 
 ### Repeat commands

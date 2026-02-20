@@ -60,7 +60,7 @@ Other
   t               Open terminal in current directory
   e               Execute current file (ESC cancels output)
   ?               Toggle this help
-  q               Quit the app
+  q / Ctrl+Q      Quit the app
   Ctrl+C          Quit immediately
 
 Picker Mode

@@ -1205,7 +1205,7 @@ class InputHandler:
             self.nav.help_scroll = 0
             return False
 
-        if key == ord("q"):
+        if key == ord("q") or key == 17:  # Ctrl+Q
             self.nav.exit_visual_mode()
             self.nav.status_message = "Quit"
             self.nav.need_redraw = True
