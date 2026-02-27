@@ -71,3 +71,22 @@ def test_invoke_handler_delegates_to_terminal_when_external():
     assert result is True
     mock_terminal.assert_called_once()
     mock_internal.assert_not_called()
+
+
+def test_open_file_uses_music_player_for_audio_files():
+    nav = _make_nav()
+    spec = HandlerSpec(commands=[["ffplay", "-nodisp", "-autoexit"]])
+    nav.config.handlers["music_player"] = spec
+    service = FileActionService(nav)
+
+    with (
+        patch("file_actions.mimetypes.guess_type", return_value=("audio/mpeg", None)),
+        patch.object(service, "_invoke_handler", return_value=True) as mock_invoke,
+    ):
+        service.open_file("song.mp3")
+
+    mock_invoke.assert_called_once_with(
+        spec,
+        "song.mp3",
+        default_strategy="external_background",
+    )

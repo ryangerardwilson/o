@@ -269,6 +269,7 @@ Supported options:
       "parquet_viewer": { "commands": [["vixl"]], "is_internal": true },
       "h5_viewer": { "commands": [["h5ls"]], "is_internal": true },
       "xlsx_viewer": { "commands": [["libreoffice", "--calc"]] },
+      "music_player": { "commands": [["ffplay", "-nodisp", "-autoexit"]] },
       "editor": { "commands": [["vim"]] }
     },
     "executors": {
@@ -283,6 +284,7 @@ Supported options:
     command exits). Leave it as `false` or omit it to launch the command in a
     new terminal or background process, preserving the existing UI behaviour.
   - `pdf_viewer` and `image_viewer` control the viewers for PDFs and images.
+  - `music_player` opens audio files (for example `.mp3`, `.flac`, `.wav`).
   - `csv_viewer`, `parquet_viewer`, and `h5_viewer` default to external terminals;
     flip `is_internal` to `true` if you prefer terminal-native tools that should
     take over the current UI.
@@ -304,7 +306,8 @@ Reference template:
     "csv_viewer": { "commands": [["libreoffice", "--calc"]] },
     "parquet_viewer": { "commands": [["db-browser-for-sqlite"]] },
     "h5_viewer": { "commands": [["h5ls"]], "is_internal": true },
-    "xlsx_viewer": { "commands": [["libreoffice", "--calc"]] }
+    "xlsx_viewer": { "commands": [["libreoffice", "--calc"]] },
+    "music_player": { "commands": [["ffplay", "-nodisp", "-autoexit"]] }
   },
   "executors": {
     "python": "/usr/bin/python3",
@@ -327,7 +330,8 @@ adapt it to your own tools and directory structure:
     "csv_viewer": { "commands": [["libreoffice", "--calc"]] },
     "parquet_viewer": { "commands": [["db-browser-for-sqlite"]] },
     "h5_viewer": { "commands": [["h5ls"]], "is_internal": true },
-    "xlsx_viewer": { "commands": [["libreoffice", "--calc"]] }
+    "xlsx_viewer": { "commands": [["libreoffice", "--calc"]] },
+    "music_player": { "commands": [["ffplay", "-nodisp", "-autoexit"]] }
   }
 }
 ```
@@ -345,6 +349,7 @@ adapt it to your own tools and directory structure:
     use).
   - `h5_viewer`: opens `.h5` files (example uses `h5ls` inside the terminal).
   - `xlsx_viewer`: opens `.xlsx` files (example uses LibreOffice Calc).
+  - `music_player`: opens audio files (example uses `ffplay`).
   - Set `is_internal` to `true` for terminal-native tools that should replace the
     current `o` UI until they exit (e.g. `vixl`, `less`, `bat`).
 Feel free to swap out the sample applications (Evince, Feh, LibreOffice, etc.)

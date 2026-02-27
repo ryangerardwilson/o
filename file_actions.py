@@ -13,6 +13,21 @@ from typing import Optional, cast, Any, List, Tuple
 from config import HandlerSpec
 
 
+AUDIO_EXTENSIONS = {
+    ".aac",
+    ".aiff",
+    ".alac",
+    ".flac",
+    ".m4a",
+    ".mka",
+    ".mp3",
+    ".ogg",
+    ".opus",
+    ".wav",
+    ".wma",
+}
+
+
 class ExecutionJob:
     def __init__(self, filepath: str, command: List[str], display: str, mode: str):
         self.filepath = filepath
@@ -278,6 +293,14 @@ class FileActionService:
             elif mime_type and mime_type.startswith("image/"):
                 handled = self._invoke_handler(
                     self.nav.config.get_handler_spec("image_viewer"),
+                    filepath,
+                    default_strategy="external_background",
+                )
+            elif (mime_type and mime_type.startswith("audio/")) or (
+                ext_lower in AUDIO_EXTENSIONS
+            ):
+                handled = self._invoke_handler(
+                    self.nav.config.get_handler_spec("music_player"),
                     filepath,
                     default_strategy="external_background",
                 )
