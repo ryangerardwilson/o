@@ -73,10 +73,10 @@ def test_invoke_handler_delegates_to_terminal_when_external():
     mock_internal.assert_not_called()
 
 
-def test_open_file_uses_music_player_for_audio_files():
+def test_open_file_uses_media_player_for_audio_files():
     nav = _make_nav()
     spec = HandlerSpec(commands=[["ffplay", "-nodisp", "-autoexit"]])
-    nav.config.handlers["music_player"] = spec
+    nav.config.handlers["media_player"] = spec
     service = FileActionService(nav)
 
     with (
@@ -88,5 +88,24 @@ def test_open_file_uses_music_player_for_audio_files():
     mock_invoke.assert_called_once_with(
         spec,
         "song.mp3",
+        default_strategy="external_background",
+    )
+
+
+def test_open_file_uses_media_player_for_video_files():
+    nav = _make_nav()
+    spec = HandlerSpec(commands=[["ffplay", "-autoexit"]])
+    nav.config.handlers["media_player"] = spec
+    service = FileActionService(nav)
+
+    with (
+        patch("file_actions.mimetypes.guess_type", return_value=("video/mp4", None)),
+        patch.object(service, "_invoke_handler", return_value=True) as mock_invoke,
+    ):
+        service.open_file("clip.mp4")
+
+    mock_invoke.assert_called_once_with(
+        spec,
+        "clip.mp4",
         default_strategy="external_background",
     )

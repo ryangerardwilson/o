@@ -13,7 +13,7 @@ from typing import Optional, cast, Any, List, Tuple
 from config import HandlerSpec
 
 
-AUDIO_EXTENSIONS = {
+MEDIA_AUDIO_EXTENSIONS = {
     ".aac",
     ".aiff",
     ".alac",
@@ -25,6 +25,18 @@ AUDIO_EXTENSIONS = {
     ".opus",
     ".wav",
     ".wma",
+}
+
+MEDIA_VIDEO_EXTENSIONS = {
+    ".avi",
+    ".m4v",
+    ".mkv",
+    ".mov",
+    ".mp4",
+    ".mpeg",
+    ".mpg",
+    ".webm",
+    ".wmv",
 }
 
 
@@ -296,11 +308,14 @@ class FileActionService:
                     filepath,
                     default_strategy="external_background",
                 )
-            elif (mime_type and mime_type.startswith("audio/")) or (
-                ext_lower in AUDIO_EXTENSIONS
+            elif (
+                (mime_type and mime_type.startswith("audio/"))
+                or (mime_type and mime_type.startswith("video/"))
+                or (ext_lower in MEDIA_AUDIO_EXTENSIONS)
+                or (ext_lower in MEDIA_VIDEO_EXTENSIONS)
             ):
                 handled = self._invoke_handler(
-                    self.nav.config.get_handler_spec("music_player"),
+                    self.nav.config.get_handler_spec("media_player"),
                     filepath,
                     default_strategy="external_background",
                 )
