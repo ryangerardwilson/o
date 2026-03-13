@@ -1669,6 +1669,9 @@ class InputHandler:
     def _build_delete_prompt(self, entries: List[tuple[str, str, bool]]) -> str:
         if not entries:
             return ""
+        if len(entries) == 1:
+            label = self._format_deletion_label(*entries[0])
+            return f'Delete "{label}"'
         count = len(entries)
         noun = "item" if count == 1 else "items"
         return f"Delete {count} {noun}"

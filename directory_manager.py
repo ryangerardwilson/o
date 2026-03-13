@@ -131,7 +131,10 @@ class DirectoryManager:
 
     def set_sort_mode(self, mode: str):
         if mode in {"alpha", "mtime_asc", "mtime_desc"}:
+            if self.sort_mode == mode:
+                return
             self.sort_mode = mode
+            self.refresh_cache()
 
     def set_sort_mode_for_path(self, path: str, mode: str):
         if mode not in {"alpha", "mtime_asc", "mtime_desc"}:
