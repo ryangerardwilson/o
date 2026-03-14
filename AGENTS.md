@@ -1,5 +1,10 @@
 # Repository Guidelines
 
+## Workspace Defaults
+- Follow `/home/ryan/Documents/agent_context/CLI_TUI_STYLE_GUIDE.md` for CLI/TUI taste and help shape.
+- Follow `/home/ryan/Documents/agent_context/CANONICAL_REFERENCE_IMPLEMENTATION_FOR_CLI_AND_TUI_APPS.md` for executable contract details such as `-h`, `-v`, `-u`, installer behavior, release workflow expectations, and regression expectations.
+- This file only records `o`-specific constraints or durable deviations.
+
 ## Project Structure & Module Organization
 This repository is a single-package Python TUI app. Top-level modules each have a focused role:
 - Entry/runtime: `main.py`, `orchestrator.py`, `_version.py`
