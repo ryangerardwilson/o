@@ -8,92 +8,49 @@ import shlex
 import shutil
 import subprocess
 import sys
-from typing import Sequence
+from pathlib import Path
 from urllib.parse import urlparse, unquote
 
 import config
 from orchestrator import Orchestrator
 from core_navigator import PickerOptions
+from rgw_cli_contract import AppSpec, resolve_install_script_path, run_app
 
-try:
-    from _version import __version__
-except Exception:  # pragma: no cover - fallback when running from source
-    __version__ = "0.0.0"
+from _version import __version__
 
-INSTALL_SH_URL = "https://raw.githubusercontent.com/ryangerardwilson/o/main/install.sh"
+INSTALL_SCRIPT = resolve_install_script_path(__file__)
+HELP_TEXT = """o
+
+flags:
+  o -h
+    show this help
+  o -v
+    print the installed version
+  o -u
+    upgrade to the latest release
+  o conf
+    open config in $VISUAL/$EDITOR
+
+features:
+  launch the file navigator from the current directory
+  # o
+  o
+
+  start from a specific path or reveal a path in its parent directory
+  # o ~/Downloads | o -r ~/Downloads/file.txt
+  o ~/Downloads
+  o -r ~/Downloads/file.txt
+
+  run picker or save mode with filters
+  # o -p ~/src -lf py,md | o -s ~/Downloads -se txt
+  o -p ~/src -lf py,md
+  o -s ~/Downloads -se txt
+"""
 
 REVEAL_ENV = "O_REVEAL_LAUNCHED"
 REVEAL_NO_SPAWN_ENV = "O_REVEAL_NO_SPAWN"
 
 os.environ.setdefault("ESCDELAY", "25")
-
-
-def _print_help() -> None:
-    print(
-        "o - Vim-inspired terminal file navigator\n\n"
-        "Usage:\n"
-        "  o [path]     Launch the TUI (optional start path)\n"
-        "  o conf       Open config in $VISUAL/$EDITOR\n"
-        "  o -h         Show this help\n"
-        "  o -v         Show installed version\n"
-        "  o -u         Reinstall latest release if a newer version exists\n"
-        "  o -r PATH    Reveal PATH (open folder, highlight item)\n\n"
-        "Picker mode:\n"
-        "  -p [dir]     Start picker mode (defaults to ~/)\n"
-        "  -s [dir]     Save mode (pick output path)\n"
-        "  -ld          Limit selection to directories\n"
-        "  -lf [exts]   Limit selection to files, optional extensions\n"
-        "  -m           Allow multi-select via marks\n"
-        "  -se [ext]    Save extension (save mode only)"
-    )
-
-
-def _open_config_in_editor() -> int:
-    config_path = os.path.realpath(os.path.expanduser(config.get_config_path()))
-    os.makedirs(os.path.dirname(config_path), exist_ok=True)
-    if not os.path.exists(config_path):
-        with open(config_path, "w", encoding="utf-8") as handle:
-            handle.write("{}\n")
-    editor = (os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vim").strip()
-    editor_cmd = shlex.split(editor) if editor else ["vim"]
-    if not editor_cmd:
-        editor_cmd = ["vim"]
-    return subprocess.run([*editor_cmd, config_path], check=False).returncode
-
-
-def _run_upgrade() -> int:
-    try:
-        curl = subprocess.Popen(
-            ["curl", "-fsSL", INSTALL_SH_URL],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    except FileNotFoundError:
-        print("Upgrade requires curl", file=sys.stderr)
-        return 1
-
-    try:
-        bash = subprocess.Popen(["bash", "-s", "--", "-u"], stdin=curl.stdout)
-        if curl.stdout is not None:
-            curl.stdout.close()
-    except FileNotFoundError:
-        print("Upgrade requires bash", file=sys.stderr)
-        curl.terminate()
-        curl.wait()
-        return 1
-
-    bash_rc = bash.wait()
-    curl_rc = curl.wait()
-
-    if curl_rc != 0:
-        stderr = (
-            curl.stderr.read().decode("utf-8", errors="replace") if curl.stderr else ""
-        )
-        if stderr:
-            sys.stderr.write(stderr)
-        return curl_rc
-
-    return bash_rc
 
 
 def _launch_reveal_terminal(reveal_path: str) -> bool:
@@ -148,11 +105,8 @@ def _launch_reveal_terminal(reveal_path: str) -> bool:
 
 
 def _parse_args(
-    argv: Sequence[str],
-) -> tuple[bool, bool, bool, PickerOptions | None, str | None, str | None]:
-    show_help = False
-    show_version = False
-    do_upgrade = False
+    argv: list[str],
+) -> tuple[PickerOptions | None, str | None, str | None]:
     picker_allowed: str | None = None
     picker_mode = False
     extensions: list[str] = []
@@ -167,13 +121,7 @@ def _parse_args(
     i = 0
     while i < len(argv):
         arg = argv[i]
-        if arg in {"-h", "--help"}:
-            show_help = True
-        elif arg in {"-v", "--version", "-V"}:
-            show_version = True
-        elif arg in {"-u", "--upgrade"}:
-            do_upgrade = True
-        elif arg == "-p":
+        if arg == "-p":
             picker_mode = True
             if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
                 i += 1
@@ -277,39 +225,24 @@ def _parse_args(
             multi_select=multi_select,
             mode="save" if save_mode else "pick",
         )
-    return show_help, show_version, do_upgrade, picker_options, start_path, reveal_path
+    return picker_options, start_path, reveal_path
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = sys.argv[1:] if argv is None else argv
-    if args == ["conf"]:
-        return _open_config_in_editor()
+def _config_path() -> Path:
+    return Path(os.path.realpath(os.path.expanduser(config.get_config_path())))
+
+
+def _dispatch(args: list[str]) -> int:
     picker_options = None
     start_path = None
     reveal_path = None
 
     if args:
         try:
-            (
-                show_help,
-                show_version,
-                do_upgrade,
-                picker_options,
-                start_path,
-                reveal_path,
-            ) = _parse_args(args)
+            picker_options, start_path, reveal_path = _parse_args(args)
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 1
-
-        if show_help:
-            _print_help()
-            return 0
-        if show_version:
-            print(__version__)
-            return 0
-        if do_upgrade:
-            return _run_upgrade()
 
     start_dir = start_path or os.getcwd()
     if (
@@ -339,6 +272,21 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         return 1
     return 0
+
+
+APP_SPEC = AppSpec(
+    app_name="o",
+    version=__version__,
+    help_text=HELP_TEXT,
+    install_script_path=INSTALL_SCRIPT,
+    no_args_mode="dispatch",
+    config_path_factory=_config_path,
+)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    return run_app(APP_SPEC, args, _dispatch)
 
 
 def _write_picker_cache(selection: list[str]) -> None:
