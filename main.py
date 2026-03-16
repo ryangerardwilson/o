@@ -411,6 +411,9 @@ def _dispatch(args: list[str]) -> int:
 
         direct_target = direct_targets[0]
         if os.path.isfile(direct_target):
+            vim_command = _resolve_internal_vim_command([direct_target])
+            if vim_command is not None:
+                return 0 if _run_internal_command(vim_command) else 1
             return 0 if _open_files_detached([direct_target]) else 1
         start_path = direct_target
 

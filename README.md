@@ -93,9 +93,12 @@ python main.py /path/to/file.txt
 ```
 
 - If the positional target is a file, `o` launches the configured file handler
-  in detached mode and exits immediately.
+  and exits immediately.
 - If multiple positional targets are provided, they must all be files; `o`
   opens each one detached and then exits.
+- If a single positional target is a text-like file and the editor resolves to
+  `vim`, `o` runs one in-terminal `vim file` session instead of spawning a
+  detached terminal.
 - Text/editor handlers open in a detached terminal so the current shell is not
   taken over. If multiple text files do not resolve to `vim`, `o` launches one
   detached editor session per file.

@@ -39,7 +39,7 @@ def test_build_terminal_launch_command_uses_dash_e_for_regular_terminals():
 
 
 def test_dispatch_opens_positional_file_detached(monkeypatch, tmp_path):
-    target = tmp_path / "note.txt"
+    target = tmp_path / "note.bin"
     target.write_text("hello\n", encoding="utf-8")
 
     opened = []
@@ -60,6 +60,47 @@ def test_dispatch_opens_positional_file_detached(monkeypatch, tmp_path):
 
     assert result == 0
     assert opened == [str(target.resolve())]
+
+
+def test_dispatch_opens_single_text_file_in_internal_vim(monkeypatch, tmp_path):
+    target = tmp_path / "note.md"
+    target.write_text("# note\n", encoding="utf-8")
+
+    launched = []
+
+    monkeypatch.setattr(
+        main.shutil,
+        "which",
+        lambda name: "/usr/bin/vim" if name == "vim" else None,
+    )
+    monkeypatch.setattr(
+        main.config,
+        "USER_CONFIG",
+        SimpleNamespace(
+            get_handler_spec=lambda _name: main.config.HandlerSpec(
+                commands=[],
+                is_internal=False,
+            )
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        main.subprocess,
+        "call",
+        lambda argv: launched.append(list(argv)) or 0,
+    )
+    monkeypatch.setattr(
+        main,
+        "_open_file_detached",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("detached open should not be used for single-file vim")
+        ),
+    )
+
+    result = main._dispatch([str(target)])
+
+    assert result == 0
+    assert launched == [["vim", str(target.resolve())]]
 
 
 def test_dispatch_opens_multiple_positional_files_detached(monkeypatch, tmp_path):
