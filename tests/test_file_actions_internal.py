@@ -73,6 +73,36 @@ def test_invoke_handler_delegates_to_terminal_when_external():
     mock_internal.assert_not_called()
 
 
+def test_invoke_handler_detached_uses_detached_runner():
+    nav = _make_nav()
+    service = FileActionService(nav)
+
+    spec = HandlerSpec(commands=[["vim"]], is_internal=True)
+
+    with (
+        patch.object(
+            service, "_run_detached_handlers", return_value=True
+        ) as mock_detached,
+        patch.object(
+            service, "_run_internal_handler", return_value=False
+        ) as mock_internal,
+    ):
+        result = service._invoke_handler(
+            spec,
+            "example.txt",
+            default_strategy="external_foreground",
+            detached=True,
+        )
+
+    assert result is True
+    mock_detached.assert_called_once_with(
+        spec.commands,
+        "example.txt",
+        default_strategy="external_foreground",
+    )
+    mock_internal.assert_not_called()
+
+
 def test_open_file_uses_audio_player_for_audio_files():
     nav = _make_nav()
     spec = HandlerSpec(commands=[["ffplay", "-nodisp", "-autoexit"]])
@@ -89,6 +119,7 @@ def test_open_file_uses_audio_player_for_audio_files():
         spec,
         "song.mp3",
         default_strategy="external_background",
+        detached=False,
     )
 
 
@@ -108,6 +139,7 @@ def test_open_file_uses_media_player_for_video_files():
         spec,
         "clip.mp4",
         default_strategy="external_background",
+        detached=False,
     )
 
 
@@ -127,6 +159,7 @@ def test_open_file_falls_back_to_media_player_for_audio():
         spec,
         "song.ogg",
         default_strategy="external_background",
+        detached=False,
     )
 
 
@@ -148,4 +181,5 @@ def test_open_file_prefers_video_player_over_media_player():
         video_spec,
         "clip.mp4",
         default_strategy="external_background",
+        detached=False,
     )

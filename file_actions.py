@@ -93,6 +93,15 @@ class FileActionService:
         self.nav = navigator
 
     # === Helpers ===
+    @staticmethod
+    def _flash() -> None:
+        try:
+            curses.flash()
+        except curses.error:
+            pass
+        except Exception:
+            pass
+
     def _resolve_base_directory(self, base_path: Optional[str]) -> str:
         if base_path:
             candidate = os.path.realpath(base_path)
@@ -358,13 +367,13 @@ class FileActionService:
         return response
 
     # === File operations ===
-    def open_file(self, filepath: str):
+    def open_file(self, filepath: str, *, detached: bool = False) -> bool:
         if filepath.endswith(".zip"):
             stdscr_opt = self.nav.renderer.stdscr
             if stdscr_opt is None:
-                curses.flash()
+                self._flash()
                 self.nav.need_redraw = True
-                return
+                return False
             stdscr = cast(Any, stdscr_opt)
             max_y, max_x = stdscr.getmaxyx()
             try:
@@ -393,9 +402,11 @@ class FileActionService:
                             )
                             stdscr.refresh()
             except Exception:
-                curses.flash()
+                self._flash()
+                self.nav.need_redraw = True
+                return False
             self.nav.need_redraw = True
-            return
+            return True
 
         mime_type, _ = mimetypes.guess_type(filepath)
         _, ext = os.path.splitext(filepath)
@@ -409,36 +420,42 @@ class FileActionService:
                     self.nav.config.get_handler_spec("csv_viewer"),
                     filepath,
                     default_strategy="terminal",
+                    detached=detached,
                 )
             elif ext_lower == ".parquet":
                 handled = self._invoke_handler(
                     self.nav.config.get_handler_spec("parquet_viewer"),
                     filepath,
                     default_strategy="terminal",
+                    detached=detached,
                 )
             elif ext_lower == ".h5":
                 handled = self._invoke_handler(
                     self.nav.config.get_handler_spec("h5_viewer"),
                     filepath,
                     default_strategy="terminal",
+                    detached=detached,
                 )
             elif ext_lower == ".xlsx":
                 handled = self._invoke_handler(
                     self.nav.config.get_handler_spec("xlsx_viewer"),
                     filepath,
                     default_strategy="external_background",
+                    detached=detached,
                 )
             elif mime_type == "application/pdf":
                 handled = self._invoke_handler(
                     self.nav.config.get_handler_spec("pdf_viewer"),
                     filepath,
                     default_strategy="external_background",
+                    detached=detached,
                 )
             elif mime_type and mime_type.startswith("image/"):
                 handled = self._invoke_handler(
                     self.nav.config.get_handler_spec("image_viewer"),
                     filepath,
                     default_strategy="external_background",
+                    detached=detached,
                 )
             elif (mime_type and mime_type.startswith("audio/")) or (
                 ext_lower in MEDIA_AUDIO_EXTENSIONS
@@ -447,6 +464,7 @@ class FileActionService:
                     self._select_media_handler_spec("audio"),
                     filepath,
                     default_strategy="external_background",
+                    detached=detached,
                 )
             elif (mime_type and mime_type.startswith("video/")) or (
                 ext_lower in MEDIA_VIDEO_EXTENSIONS
@@ -455,6 +473,7 @@ class FileActionService:
                     self._select_media_handler_spec("video"),
                     filepath,
                     default_strategy="external_background",
+                    detached=detached,
                 )
             else:
                 is_text_like = bool(
@@ -481,17 +500,22 @@ class FileActionService:
                     self.nav.config.get_handler_spec("editor"),
                     filepath,
                     default_strategy="external_foreground",
+                    detached=detached,
                 )
         except FileNotFoundError:
             pass
-        finally:
-            if not handled and is_text_like:
+
+        if not handled and is_text_like:
+            if detached:
+                handled = self._open_with_vim_detached(filepath)
+            else:
                 handled = self._open_with_vim(filepath)
 
-            if not handled:
-                self.nav.status_message = "No handler configured"
-                curses.flash()
-            self.nav.need_redraw = True
+        if not handled:
+            self.nav.status_message = "No handler configured"
+            self._flash()
+        self.nav.need_redraw = True
+        return handled
 
     def _open_with_vim(self, filepath: str) -> bool:
         stdscr_opt = self.nav.renderer.stdscr
@@ -531,15 +555,31 @@ class FileActionService:
 
         return False
 
+    def _open_with_vim_detached(self, filepath: str) -> bool:
+        if shutil.which("vim") is None:
+            return False
+        try:
+            return bool(self.nav.open_terminal(None, ["vim", filepath]))
+        except Exception:
+            return False
+
     def _invoke_handler(
         self,
         spec: HandlerSpec,
         filepath: str,
         *,
         default_strategy: str,
+        detached: bool = False,
     ) -> bool:
         if not spec.commands:
             return False
+
+        if detached:
+            return self._run_detached_handlers(
+                spec.commands,
+                filepath,
+                default_strategy=default_strategy,
+            )
 
         if spec.is_internal:
             return self._run_internal_handler(spec.commands, filepath)
@@ -560,6 +600,22 @@ class FileActionService:
             )
 
         return False
+
+    def _run_detached_handlers(
+        self,
+        handlers: List[List[str]],
+        filepath: str,
+        *,
+        default_strategy: str,
+    ) -> bool:
+        if default_strategy == "external_background":
+            return self._run_external_handlers(
+                handlers,
+                filepath,
+                background=True,
+            )
+
+        return self._run_terminal_handlers(handlers, filepath)
 
     def _run_external_handlers(
         self,
@@ -709,7 +765,7 @@ class FileActionService:
     def run_execution(self, filepath: str) -> bool:
         if not filepath or not os.path.isfile(filepath):
             self.nav.status_message = "Not a file"
-            curses.flash()
+            self._flash()
             self.nav.need_redraw = True
             return False
 
@@ -720,14 +776,14 @@ class FileActionService:
             and existing_job.is_running()
         ):
             self.nav.status_message = "Execution already in progress"
-            curses.flash()
+            self._flash()
             self.nav.need_redraw = True
             return False
 
         command, mode, error = self._resolve_execution_command(filepath)
         if not command:
             self.nav.status_message = error or "Unable to execute file"
-            curses.flash()
+            self._flash()
             self.nav.need_redraw = True
             return False
 
@@ -752,12 +808,12 @@ class FileActionService:
             )
         except FileNotFoundError:
             self.nav.status_message = f"Executor not found: {command[0]}"
-            curses.flash()
+            self._flash()
             self.nav.need_redraw = True
             return False
         except Exception as exc:
             self.nav.status_message = f"Failed to launch: {exc.__class__.__name__}"
-            curses.flash()
+            self._flash()
             self.nav.need_redraw = True
             return False
 

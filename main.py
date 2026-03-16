@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import urlparse, unquote
 
 import config
@@ -36,9 +37,10 @@ features:
   # o
   o
 
-  start from a specific path or reveal a path in its parent directory
-  # o ~/Downloads | o -r ~/Downloads/file.txt
+  start from a directory, open a file detached, or reveal a path in its parent directory
+  # o ~/Downloads | o ~/notes/todo.txt | o -r ~/Downloads/file.txt
   o ~/Downloads
+  o ~/notes/todo.txt
   o -r ~/Downloads/file.txt
 
   run picker or save mode with filters
@@ -54,6 +56,18 @@ os.environ.setdefault("ESCDELAY", "25")
 
 
 def _launch_reveal_terminal(reveal_path: str) -> bool:
+    return _launch_terminal_command(
+        ["o", "-r", reveal_path],
+        env={REVEAL_ENV: "1"},
+    )
+
+
+def _launch_terminal_command(
+    command: list[str],
+    *,
+    cwd: str | None = None,
+    env: dict[str, str] | None = None,
+) -> bool:
     term_env = os.environ.get("TERMINAL")
     commands = []
     if term_env:
@@ -73,8 +87,8 @@ def _launch_reveal_terminal(reveal_path: str) -> bool:
     )
 
     launch_env = dict(os.environ)
-    launch_env[REVEAL_ENV] = "1"
-    cmd_payload = ["o", "-r", reveal_path]
+    if env:
+        launch_env.update(env)
 
     for cmd in commands:
         if not cmd:
@@ -84,13 +98,14 @@ def _launch_reveal_terminal(reveal_path: str) -> bool:
         launch_cmd = list(cmd)
         if any("{cmd}" in token for token in launch_cmd):
             launch_cmd = [
-                token.replace("{cmd}", " ".join(cmd_payload)) for token in launch_cmd
+                token.replace("{cmd}", " ".join(command)) for token in launch_cmd
             ]
         else:
-            launch_cmd.extend(["-e"] + cmd_payload)
+            launch_cmd.extend(["-e"] + command)
         try:
             subprocess.Popen(
                 launch_cmd,
+                cwd=cwd,
                 env=launch_env,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -102,6 +117,13 @@ def _launch_reveal_terminal(reveal_path: str) -> bool:
             continue
 
     return False
+
+
+def _normalize_target_path(path: str) -> str:
+    parsed = urlparse(path)
+    if parsed.scheme == "file":
+        path = unquote(parsed.path)
+    return os.path.realpath(os.path.expanduser(path))
 
 
 def _parse_args(
@@ -208,10 +230,7 @@ def _parse_args(
         start_path = positional_path
 
     if reveal_path:
-        parsed = urlparse(reveal_path)
-        if parsed.scheme == "file":
-            reveal_path = unquote(parsed.path)
-        reveal_path = os.path.realpath(os.path.expanduser(reveal_path))
+        reveal_path = _normalize_target_path(reveal_path)
         if os.path.isdir(reveal_path):
             start_path = reveal_path
         else:
@@ -232,6 +251,31 @@ def _config_path() -> Path:
     return Path(os.path.realpath(os.path.expanduser(config.get_config_path())))
 
 
+def _open_file_detached(filepath: str) -> bool:
+    from file_actions import FileActionService
+
+    directory = os.path.dirname(filepath) or os.getcwd()
+    nav = SimpleNamespace(
+        config=config.USER_CONFIG,
+        renderer=SimpleNamespace(stdscr=None),
+        dir_manager=SimpleNamespace(current_path=directory),
+        status_message="",
+        need_redraw=False,
+    )
+
+    def _open_terminal(base_path: str | None = None, command: list[str] | None = None) -> bool:
+        if not command:
+            return False
+        return _launch_terminal_command(
+            command,
+            cwd=base_path or nav.dir_manager.current_path,
+        )
+
+    nav.open_terminal = _open_terminal
+    service = FileActionService(nav)
+    return service.open_file(filepath, detached=True)
+
+
 def _dispatch(args: list[str]) -> int:
     picker_options = None
     start_path = None
@@ -243,6 +287,11 @@ def _dispatch(args: list[str]) -> int:
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 1
+
+    if picker_options is None and reveal_path is None and start_path:
+        direct_target = _normalize_target_path(start_path)
+        if os.path.isfile(direct_target):
+            return 0 if _open_file_detached(direct_target) else 1
 
     start_dir = start_path or os.getcwd()
     if (

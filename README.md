@@ -62,6 +62,7 @@ git clone https://github.com/ryangerardwilson/o.git
 cd o
 python main.py
 python main.py /path/to/start/dir
+python main.py /path/to/file.txt
 ```
 
 ## Usage
@@ -80,6 +81,21 @@ o -r file:///path/to/file
 - `-r <path>`: start in the parent directory (or the directory itself) and focus the target item.
 - Reveal mode always starts in list view. If `o` is launched without a TTY, it
   spawns a detached terminal automatically.
+
+### Direct file open
+
+Open a file directly from the shell without starting the navigator UI:
+
+```bash
+o /path/to/file.txt
+python main.py /path/to/file.txt
+```
+
+- If the positional target is a file, `o` launches the configured file handler
+  in detached mode and exits immediately.
+- Text/editor handlers open in a detached terminal so the current shell is not
+  taken over.
+- Directory targets still start the navigator UI as usual.
 
 ### Picker mode
 
