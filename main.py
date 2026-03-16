@@ -37,10 +37,11 @@ features:
   # o
   o
 
-  start from a directory, open a file detached, or reveal a path in its parent directory
-  # o ~/Downloads | o ~/notes/todo.txt | o -r ~/Downloads/file.txt
+  start from a directory, open one or more files detached, or reveal a path in its parent directory
+  # o ~/Downloads | o ~/notes/todo.txt | o a.txt b.txt | o -r ~/Downloads/file.txt
   o ~/Downloads
   o ~/notes/todo.txt
+  o a.txt b.txt
   o -r ~/Downloads/file.txt
 
   run picker or save mode with filters
@@ -128,7 +129,7 @@ def _normalize_target_path(path: str) -> str:
 
 def _parse_args(
     argv: list[str],
-) -> tuple[PickerOptions | None, str | None, str | None]:
+) -> tuple[PickerOptions | None, str | None, str | None, list[str]]:
     picker_allowed: str | None = None
     picker_mode = False
     extensions: list[str] = []
@@ -137,7 +138,7 @@ def _parse_args(
     save_extensions_set = False
     start_path: str | None = None
     picker_start_path: str | None = None
-    positional_path: str | None = None
+    positional_targets: list[str] = []
     reveal_path: str | None = None
 
     i = 0
@@ -189,9 +190,7 @@ def _parse_args(
         else:
             if arg.startswith("-"):
                 raise ValueError(f"Unknown flag '{arg}'")
-            if positional_path is not None:
-                raise ValueError("Only one start path is allowed")
-            positional_path = arg
+            positional_targets.append(arg)
         i += 1
 
     if picker_mode and save_mode:
@@ -200,7 +199,7 @@ def _parse_args(
     if reveal_path and (picker_mode or save_mode):
         raise ValueError("-r cannot be used with -p or -s")
 
-    if reveal_path and positional_path:
+    if reveal_path and positional_targets:
         raise ValueError("-r cannot be used with a start path")
 
     if save_extensions_set and not save_mode:
@@ -219,15 +218,19 @@ def _parse_args(
         raise ValueError("-s cannot be used with -m")
 
     if picker_mode or save_mode:
-        if picker_start_path and positional_path:
+        if picker_start_path and positional_targets:
             raise ValueError("Start path already provided for -p/-s")
-        start_path = picker_start_path or positional_path
+        if len(positional_targets) > 1:
+            raise ValueError("Only one start path is allowed for -p/-s")
+        start_path = picker_start_path or (
+            positional_targets[0] if positional_targets else None
+        )
         if not start_path:
             start_path = os.path.expanduser("~")
         if picker_allowed is None:
             picker_allowed = "any"
-    elif positional_path:
-        start_path = positional_path
+    elif positional_targets:
+        start_path = positional_targets[0]
 
     if reveal_path:
         reveal_path = _normalize_target_path(reveal_path)
@@ -244,14 +247,14 @@ def _parse_args(
             multi_select=multi_select,
             mode="save" if save_mode else "pick",
         )
-    return picker_options, start_path, reveal_path
+    return picker_options, start_path, reveal_path, positional_targets
 
 
 def _config_path() -> Path:
     return Path(os.path.realpath(os.path.expanduser(config.get_config_path())))
 
 
-def _open_file_detached(filepath: str) -> bool:
+def _open_file_detached(filepath: str) -> tuple[bool, str]:
     from file_actions import FileActionService
 
     directory = os.path.dirname(filepath) or os.getcwd()
@@ -273,25 +276,53 @@ def _open_file_detached(filepath: str) -> bool:
 
     nav.open_terminal = _open_terminal
     service = FileActionService(nav)
-    return service.open_file(filepath, detached=True)
+    opened = service.open_file(filepath, detached=True)
+    return opened, str(nav.status_message or "")
+
+
+def _open_files_detached(filepaths: list[str]) -> bool:
+    failures: list[tuple[str, str]] = []
+
+    for filepath in filepaths:
+        opened, status = _open_file_detached(filepath)
+        if not opened:
+            failures.append((filepath, status or "Failed to open"))
+
+    for filepath, status in failures:
+        print(f"{filepath}: {status}", file=sys.stderr)
+
+    return not failures
 
 
 def _dispatch(args: list[str]) -> int:
     picker_options = None
     start_path = None
     reveal_path = None
+    positional_targets: list[str] = []
 
     if args:
         try:
-            picker_options, start_path, reveal_path = _parse_args(args)
+            picker_options, start_path, reveal_path, positional_targets = _parse_args(
+                args
+            )
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 1
 
-    if picker_options is None and reveal_path is None and start_path:
-        direct_target = _normalize_target_path(start_path)
+    if picker_options is None and reveal_path is None and positional_targets:
+        direct_targets = [
+            _normalize_target_path(target) for target in positional_targets
+        ]
+        if len(direct_targets) > 1:
+            if any(not os.path.isfile(target) for target in direct_targets):
+                print("Multiple positional targets must all be files", file=sys.stderr)
+                return 1
+            return 0 if _open_files_detached(direct_targets) else 1
+
+        direct_target = direct_targets[0]
         if os.path.isfile(direct_target):
-            return 0 if _open_file_detached(direct_target) else 1
+            return 0 if _open_files_detached([direct_target]) else 1
+        start_path = direct_target
 
     start_dir = start_path or os.getcwd()
     if (

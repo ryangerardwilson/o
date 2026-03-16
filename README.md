@@ -88,13 +88,17 @@ Open a file directly from the shell without starting the navigator UI:
 
 ```bash
 o /path/to/file.txt
+o /path/to/file1.txt /path/to/file2.txt
 python main.py /path/to/file.txt
 ```
 
 - If the positional target is a file, `o` launches the configured file handler
   in detached mode and exits immediately.
+- If multiple positional targets are provided, they must all be files; `o`
+  opens each one detached and then exits.
 - Text/editor handlers open in a detached terminal so the current shell is not
-  taken over.
+  taken over. With multiple text files, `o` launches one detached editor
+  session per file.
 - Directory targets still start the navigator UI as usual.
 
 ### Picker mode

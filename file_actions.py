@@ -521,6 +521,12 @@ class FileActionService:
         stdscr_opt = self.nav.renderer.stdscr
         if stdscr_opt is not None:
             try:
+                curses.flushinp()
+            except curses.error:
+                pass
+            except Exception:
+                pass
+            try:
                 curses.def_prog_mode()
             except curses.error:
                 pass

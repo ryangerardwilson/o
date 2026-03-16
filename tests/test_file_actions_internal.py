@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import file_actions
 from config import HandlerSpec, UserConfig
 from file_actions import FileActionService
 
@@ -183,3 +184,35 @@ def test_open_file_prefers_video_player_over_media_player():
         default_strategy="external_background",
         detached=False,
     )
+
+
+def test_open_with_vim_flushes_pending_input(monkeypatch, tmp_path):
+    target = tmp_path / "note.md"
+    target.write_text("hello\n", encoding="utf-8")
+
+    nav = _make_nav()
+    nav.renderer.stdscr = SimpleNamespace(refresh=lambda: None)
+    service = FileActionService(nav)
+
+    calls = []
+
+    monkeypatch.setattr(file_actions.shutil, "which", lambda name: "/usr/bin/vim")
+    monkeypatch.setattr(
+        file_actions.subprocess, "call", lambda argv: calls.append(argv) or 0
+    )
+    monkeypatch.setattr(
+        file_actions.curses, "flushinp", lambda: calls.append("flush")
+    )
+    monkeypatch.setattr(file_actions.curses, "def_prog_mode", lambda: calls.append("def"))
+    monkeypatch.setattr(file_actions.curses, "endwin", lambda: calls.append("end"))
+    monkeypatch.setattr(
+        file_actions.curses, "reset_prog_mode", lambda: calls.append("reset")
+    )
+    monkeypatch.setattr(
+        file_actions.curses,
+        "curs_set",
+        lambda value: calls.append(("cursor", value)),
+    )
+
+    assert service._open_with_vim(str(target)) is True
+    assert calls[:4] == ["flush", "def", "end", ["vim", str(target)]]

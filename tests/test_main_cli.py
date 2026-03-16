@@ -29,7 +29,7 @@ def test_dispatch_opens_positional_file_detached(monkeypatch, tmp_path):
     monkeypatch.setattr(
         main,
         "_open_file_detached",
-        lambda path: opened.append(path) or True,
+        lambda path: (opened.append(path) or True, ""),
     )
 
     class FailOrchestrator:
@@ -42,6 +42,53 @@ def test_dispatch_opens_positional_file_detached(monkeypatch, tmp_path):
 
     assert result == 0
     assert opened == [str(target.resolve())]
+
+
+def test_dispatch_opens_multiple_positional_files_detached(monkeypatch, tmp_path):
+    first = tmp_path / "one.txt"
+    second = tmp_path / "two.txt"
+    first.write_text("one\n", encoding="utf-8")
+    second.write_text("two\n", encoding="utf-8")
+
+    opened = []
+
+    def fake_open(path):
+        opened.append(path)
+        return True, ""
+
+    monkeypatch.setattr(main, "_open_file_detached", fake_open)
+
+    class FailOrchestrator:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError("orchestrator should not start for file targets")
+
+    monkeypatch.setattr(main, "Orchestrator", FailOrchestrator)
+
+    result = main._dispatch([str(first), str(second)])
+
+    assert result == 0
+    assert opened == [str(first.resolve()), str(second.resolve())]
+
+
+def test_dispatch_rejects_non_file_multi_target(monkeypatch, tmp_path, capsys):
+    target = tmp_path / "note.txt"
+    target.write_text("hello\n", encoding="utf-8")
+    folder = tmp_path / "docs"
+    folder.mkdir()
+
+    class FailOrchestrator:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError(
+                "orchestrator should not start for invalid multi-target input"
+            )
+
+    monkeypatch.setattr(main, "Orchestrator", FailOrchestrator)
+
+    result = main._dispatch([str(target), str(folder)])
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "Multiple positional targets must all be files" in captured.err
 
 
 def test_open_file_detached_uses_terminal_for_editor(monkeypatch, tmp_path):
@@ -68,5 +115,5 @@ def test_open_file_detached_uses_terminal_for_editor(monkeypatch, tmp_path):
         raising=False,
     )
 
-    assert main._open_file_detached(str(target)) is True
+    assert main._open_file_detached(str(target)) == (True, "")
     assert launches == [(["nvim", str(target)], str(tmp_path))]
