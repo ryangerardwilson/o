@@ -1,7 +1,8 @@
 # ~/Apps/vios/directory_manager.py
 import os
 import fnmatch
-from typing import Optional, Dict, List, Tuple
+import subprocess
+from typing import Optional, Dict, List, Set, Tuple
 
 
 class DirectoryManager:
@@ -12,6 +13,8 @@ class DirectoryManager:
         self.sort_mode = "alpha"
         self.sort_map = {}
         self._cache: Dict[str, List[Tuple[str, bool]]] = {}
+        self._git_repo_cache: Dict[str, Optional[str]] = {}
+        self._git_ignored_cache: Dict[str, Tuple[Set[str], Set[str]]] = {}
 
         # Keep home_path for pretty_path only
         self.home_path = os.path.realpath(os.path.expanduser("~"))
@@ -58,6 +61,7 @@ class DirectoryManager:
 
         real_target = os.path.realpath(target_path)
         sort_mode = self.sort_map.get(real_target, self.sort_mode)
+        ignored_items = self._get_git_ignored_items(target_path, raw_items)
 
         for item in raw_items:
             if item in {".", ".."}:
@@ -71,6 +75,8 @@ class DirectoryManager:
             is_hidden = item.startswith(".")
 
             if is_hidden and not self.show_hidden:
+                continue
+            if item in ignored_items:
                 continue
 
             visible_items.append((item, is_dir))
@@ -86,6 +92,107 @@ class DirectoryManager:
         real_path = os.path.realpath(target_path)
         self._cache[real_path] = visible_items[:]
         return visible_items
+
+    def _get_git_ignored_items(self, target_path: str, raw_items: List[str]) -> set:
+        real_target = os.path.realpath(target_path)
+        repo_root = self._get_git_repo_root(real_target)
+        if not repo_root:
+            return set()
+
+        ignored_dirs, ignored_files = self._get_git_ignored_paths(repo_root)
+        if not ignored_dirs and not ignored_files:
+            return set()
+
+        ignored_items = set()
+        for item in raw_items:
+            full_path = os.path.join(real_target, item)
+            if not os.path.exists(full_path):
+                continue
+            rel_path = os.path.relpath(full_path, repo_root)
+            if os.path.isdir(full_path):
+                if f"{rel_path}/" in ignored_dirs:
+                    ignored_items.add(item)
+            elif rel_path in ignored_files:
+                ignored_items.add(item)
+        return ignored_items
+
+    def _get_git_ignored_paths(self, repo_root: str) -> Tuple[Set[str], Set[str]]:
+        cached = self._git_ignored_cache.get(repo_root)
+        if cached is not None:
+            return cached
+
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    repo_root,
+                    "ls-files",
+                    "--others",
+                    "-i",
+                    "--exclude-standard",
+                    "--directory",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except (FileNotFoundError, OSError):
+            cached = (set(), set())
+            self._git_ignored_cache[repo_root] = cached
+            return cached
+
+        if result.returncode != 0:
+            cached = (set(), set())
+            self._git_ignored_cache[repo_root] = cached
+            return cached
+
+        ignored_dirs: Set[str] = set()
+        ignored_files: Set[str] = set()
+        for line in result.stdout.splitlines():
+            path = line.strip()
+            if not path:
+                continue
+            normalized = path.replace("\\", "/")
+            if normalized.endswith("/"):
+                ignored_dirs.add(normalized)
+            else:
+                ignored_files.add(normalized)
+
+        cached = (ignored_dirs, ignored_files)
+        self._git_ignored_cache[repo_root] = cached
+        return cached
+
+    def _get_git_repo_root(self, target_path: str) -> Optional[str]:
+        cached = self._git_repo_cache.get(target_path)
+        if target_path in self._git_repo_cache:
+            return cached
+
+        for known_path, known_root in self._git_repo_cache.items():
+            if not known_root:
+                continue
+            if target_path == known_root or target_path.startswith(f"{known_root}{os.sep}"):
+                self._git_repo_cache[target_path] = known_root
+                return known_root
+
+        try:
+            result = subprocess.run(
+                ["git", "-C", target_path, "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except (FileNotFoundError, OSError):
+            self._git_repo_cache[target_path] = None
+            return None
+
+        if result.returncode != 0:
+            self._git_repo_cache[target_path] = None
+            return None
+
+        repo_root = result.stdout.strip() or None
+        self._git_repo_cache[target_path] = repo_root
+        return repo_root
 
     def _normalize_pattern(self, pattern: str) -> str:
         pattern = pattern.strip()
@@ -151,6 +258,8 @@ class DirectoryManager:
             self._cache.pop(real, None)
         else:
             self._cache.clear()
+        self._git_repo_cache.clear()
+        self._git_ignored_cache.clear()
 
     def _alpha_sort_key(self, entry):
         name, is_dir = entry
