@@ -62,6 +62,7 @@ jobs:
               "$PYBIN" -m pip install --only-binary=:all: pyinstaller
               echo "__version__ = \"${VERSION}\"" > _version.py
               "$PYBIN" -m PyInstaller --clean --onedir --name o main.py
+              "$PYBIN" .github/scripts/clear-execstack.py dist/o
               cp install.sh dist/o/
               tar -C dist -czf o-linux-x64.tar.gz o
 
