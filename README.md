@@ -22,15 +22,17 @@ install the latest release is via the helper script:
 curl -fsSL https://raw.githubusercontent.com/ryangerardwilson/o/main/install.sh | bash
 ```
 
-Manually add this to `~/.bashrc`, then reload your shell:
+If `~/.local/bin` is not already on your `PATH`, add it once to `~/.bashrc`
+and reload your shell:
 
 ```bash
-export PATH="$HOME/.o/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 source ~/.bashrc
 ```
 
 The script downloads the `o-linux-x64.tar.gz` artifact, extracts it into
-`~/.o/app`, and drops a shim in `~/.o/bin`.
+`~/.o/app`, keeps the internal launcher at `~/.o/bin/o`, and publishes the
+user-facing command at `~/.local/bin/o`.
 
 The installer also creates a desktop entry for reveal mode and sets it as the
 default handler for directories and file URLs (so "Show in folder" can open `o`
