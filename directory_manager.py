@@ -2,7 +2,7 @@
 import os
 import fnmatch
 import subprocess
-from typing import Optional, Dict, List, Set, Tuple
+from typing import Optional, Dict, List, Tuple
 
 
 class DirectoryManager:
@@ -14,7 +14,8 @@ class DirectoryManager:
         self.sort_map = {}
         self._cache: Dict[str, List[Tuple[str, bool]]] = {}
         self._git_repo_cache: Dict[str, Optional[str]] = {}
-        self._git_ignored_cache: Dict[str, Tuple[Set[str], Set[str]]] = {}
+        self._oinclude_cache: Dict[str, List[str]] = {}
+        self._nested_gitignore_cache: Dict[str, List[str]] = {}
 
         # Keep home_path for pretty_path only
         self.home_path = os.path.realpath(os.path.expanduser("~"))
@@ -98,70 +99,212 @@ class DirectoryManager:
         repo_root = self._get_git_repo_root(real_target)
         if not repo_root:
             return set()
-
-        ignored_dirs, ignored_files = self._get_git_ignored_paths(repo_root)
-        if not ignored_dirs and not ignored_files:
-            return set()
-
-        ignored_items = set()
+        candidates: List[Tuple[str, str, str, bool]] = []
         for item in raw_items:
             full_path = os.path.join(real_target, item)
             if not os.path.exists(full_path):
                 continue
-            rel_path = os.path.relpath(full_path, repo_root)
-            if os.path.isdir(full_path):
-                if f"{rel_path}/" in ignored_dirs:
-                    ignored_items.add(item)
-            elif rel_path in ignored_files:
-                ignored_items.add(item)
+            rel_path = os.path.relpath(full_path, repo_root).replace("\\", "/")
+            candidates.append((item, full_path, rel_path, os.path.isdir(full_path)))
+
+        if not candidates:
+            return set()
+
+        ignored_sources = self._get_git_ignore_sources(
+            repo_root,
+            [rel_path for _item, _full_path, rel_path, _is_dir in candidates],
+        )
+        if not ignored_sources:
+            return set()
+
+        ignored_items = set()
+        for item, full_path, rel_path, is_dir in candidates:
+            source_path = ignored_sources.get(rel_path)
+            if not source_path:
+                continue
+            if self._is_oincluded(repo_root, source_path, full_path, is_dir):
+                continue
+            ignored_items.add(item)
         return ignored_items
 
-    def _get_git_ignored_paths(self, repo_root: str) -> Tuple[Set[str], Set[str]]:
-        cached = self._git_ignored_cache.get(repo_root)
-        if cached is not None:
-            return cached
+    def _get_git_ignore_sources(
+        self, repo_root: str, rel_paths: List[str]
+    ) -> Dict[str, str]:
+        if not rel_paths:
+            return {}
 
         try:
             result = subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    repo_root,
-                    "ls-files",
-                    "--others",
-                    "-i",
-                    "--exclude-standard",
-                    "--directory",
-                ],
+                ["git", "-C", repo_root, "check-ignore", "-v", "--stdin"],
+                input="\n".join(rel_paths) + "\n",
                 capture_output=True,
                 text=True,
                 check=False,
             )
         except (FileNotFoundError, OSError):
-            cached = (set(), set())
-            self._git_ignored_cache[repo_root] = cached
-            return cached
+            return {}
 
-        if result.returncode != 0:
-            cached = (set(), set())
-            self._git_ignored_cache[repo_root] = cached
-            return cached
+        if result.returncode not in (0, 1):
+            return {}
 
-        ignored_dirs: Set[str] = set()
-        ignored_files: Set[str] = set()
+        sources: Dict[str, str] = {}
         for line in result.stdout.splitlines():
-            path = line.strip()
-            if not path:
+            if "\t" not in line:
                 continue
-            normalized = path.replace("\\", "/")
-            if normalized.endswith("/"):
-                ignored_dirs.add(normalized)
-            else:
-                ignored_files.add(normalized)
+            source_info, rel_path = line.rsplit("\t", 1)
+            parts = source_info.split(":", 2)
+            if len(parts) != 3:
+                continue
+            source_path, _line_number, _pattern = parts
+            sources[rel_path.replace("\\", "/")] = source_path.replace("\\", "/")
+        return sources
 
-        cached = (ignored_dirs, ignored_files)
-        self._git_ignored_cache[repo_root] = cached
-        return cached
+    def _is_oincluded(
+        self,
+        repo_root: str,
+        source_path: str,
+        full_path: str,
+        is_dir: bool,
+    ) -> bool:
+        normalized_source = source_path.replace("\\", "/")
+        if os.path.basename(normalized_source) != ".gitignore":
+            return False
+
+        source_dir_rel = os.path.dirname(normalized_source)
+        source_dir = (
+            os.path.join(repo_root, source_dir_rel) if source_dir_rel else repo_root
+        )
+        patterns = self._get_oinclude_patterns(source_dir)
+        if not patterns:
+            return False
+
+        rel_path = os.path.relpath(full_path, source_dir).replace("\\", "/")
+        item_name = os.path.basename(full_path)
+        matched = any(
+            self._matches_oinclude_pattern(pattern, rel_path, item_name, is_dir)
+            for pattern in patterns
+        )
+        if not matched:
+            return False
+        return not self._is_reignored_by_nested_gitignore(source_dir, full_path, is_dir)
+
+    def _get_oinclude_patterns(self, source_dir: str) -> List[str]:
+        real_source_dir = os.path.realpath(source_dir)
+        cached = self._oinclude_cache.get(real_source_dir)
+        if cached is not None:
+            return cached
+
+        include_path = os.path.join(real_source_dir, ".oinclude")
+        patterns = self._read_pattern_file(include_path)
+        self._oinclude_cache[real_source_dir] = patterns
+        return patterns
+
+    def _matches_oinclude_pattern(
+        self,
+        pattern: str,
+        rel_path: str,
+        item_name: str,
+        is_dir: bool,
+    ) -> bool:
+        normalized = pattern.replace("\\", "/").lstrip("/")
+        if not normalized:
+            return False
+
+        if normalized.endswith("/"):
+            base = normalized.rstrip("/")
+            return bool(base) and (
+                rel_path == base or rel_path.startswith(base + "/")
+            )
+
+        if "/" in normalized:
+            return fnmatch.fnmatch(rel_path, normalized)
+
+        return fnmatch.fnmatch(item_name, normalized) or fnmatch.fnmatch(
+            rel_path, normalized
+        )
+
+    def _is_reignored_by_nested_gitignore(
+        self, source_dir: str, full_path: str, is_dir: bool
+    ) -> bool:
+        real_source_dir = os.path.realpath(source_dir)
+        target_anchor = (
+            os.path.realpath(full_path)
+            if is_dir
+            else os.path.realpath(os.path.dirname(full_path))
+        )
+
+        if target_anchor == real_source_dir:
+            return False
+        if not target_anchor.startswith(real_source_dir + os.sep):
+            return False
+
+        nested_dirs: List[str] = []
+        current = target_anchor
+        while current.startswith(real_source_dir + os.sep):
+            nested_dirs.append(current)
+            parent = os.path.dirname(current)
+            if parent == current:
+                break
+            current = parent
+
+        for nested_dir in reversed(nested_dirs):
+            patterns = self._get_nested_gitignore_patterns(nested_dir)
+            if not patterns:
+                continue
+            rel_path = os.path.relpath(full_path, nested_dir).replace("\\", "/")
+            item_name = os.path.basename(full_path)
+            if any(
+                self._matches_gitignore_pattern(pattern, rel_path, item_name, is_dir)
+                for pattern in patterns
+            ):
+                return True
+
+        return False
+
+    def _get_nested_gitignore_patterns(self, directory: str) -> List[str]:
+        real_directory = os.path.realpath(directory)
+        cached = self._nested_gitignore_cache.get(real_directory)
+        if cached is not None:
+            return cached
+
+        patterns = self._read_pattern_file(os.path.join(real_directory, ".gitignore"))
+        self._nested_gitignore_cache[real_directory] = patterns
+        return patterns
+
+    def _read_pattern_file(self, path: str) -> List[str]:
+        patterns: List[str] = []
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    stripped = line.strip()
+                    if not stripped or stripped.startswith("#"):
+                        continue
+                    patterns.append(stripped)
+        except OSError:
+            return []
+        return patterns
+
+    def _matches_gitignore_pattern(
+        self,
+        pattern: str,
+        rel_path: str,
+        item_name: str,
+        is_dir: bool,
+    ) -> bool:
+        normalized = pattern.replace("\\", "/").lstrip("/")
+        if not normalized or normalized.startswith("!"):
+            return False
+
+        if normalized.endswith("/"):
+            base = normalized.rstrip("/")
+            return bool(base) and (
+                rel_path == base or rel_path.startswith(base + "/")
+            )
+
+        if "/" in normalized:
+            return fnmatch.fnmatch(rel_path, normalized)
+
+        return fnmatch.fnmatch(item_name, normalized)
 
     def _get_git_repo_root(self, target_path: str) -> Optional[str]:
         cached = self._git_repo_cache.get(target_path)
@@ -259,7 +402,8 @@ class DirectoryManager:
         else:
             self._cache.clear()
         self._git_repo_cache.clear()
-        self._git_ignored_cache.clear()
+        self._oinclude_cache.clear()
+        self._nested_gitignore_cache.clear()
 
     def _alpha_sort_key(self, entry):
         name, is_dir = entry

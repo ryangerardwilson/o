@@ -17,6 +17,7 @@ Navigation
   -- List mode --
   h               Parent directory (resets filter)
   l               Enter directory (resets filter) or open file
+  n               Exit o and cd into the active navigated directory context
   j / k           Down / Up
   Ctrl+J          Jump down (≈10% of list)
   Ctrl+K          Jump up (≈10% of list)

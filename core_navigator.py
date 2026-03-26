@@ -102,6 +102,22 @@ class FileNavigator:
             globs = [f"*.{ext}" for ext in self.picker_options.extensions]
             self.dir_manager.filter_pattern = ",".join(globs)
 
+    def shell_cd_enabled(self) -> bool:
+        return bool(os.environ.get("O_SHELL_CD_FILE", "").strip())
+
+    def request_shell_cd(self, target_path: Optional[str] = None) -> bool:
+        if self.picker_options is not None:
+            return False
+
+        target = os.path.realpath(target_path or self.dir_manager.current_path)
+        if not os.path.isdir(target):
+            return False
+        if not self.shell_cd_enabled():
+            return False
+
+        self.request_exit([target], reason="shell_cd")
+        return True
+
     def open_file(self, filepath: str):
         self.file_actions.open_file(filepath)
 

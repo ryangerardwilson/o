@@ -15,11 +15,42 @@ from urllib.parse import urlparse, unquote
 import config
 from orchestrator import Orchestrator
 from core_navigator import PickerOptions
-from rgw_cli_contract import AppSpec, resolve_install_script_path, run_app
+
+try:
+    from rgw_cli_contract import AppSpec, resolve_install_script_path, run_app
+except ModuleNotFoundError:
+    class AppSpec(SimpleNamespace):
+        pass
+
+    def resolve_install_script_path(source_file: str) -> Path:
+        return Path(source_file).resolve().with_name("install.sh")
+
+    def run_app(spec, args, dispatch):
+        if not args:
+            return dispatch([])
+        if args == ["-h"]:
+            print(spec.help_text, end="" if spec.help_text.endswith("\n") else "\n")
+            return 0
+        if args == ["-v"]:
+            print(spec.version)
+            return 0
+        if args == ["-u"]:
+            return subprocess.call([str(spec.install_script_path), "-u"])
+        if args == ["conf"] and getattr(spec, "config_path_factory", None):
+            config_path = Path(spec.config_path_factory())
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            editor = (
+                os.environ.get("VISUAL")
+                or os.environ.get("EDITOR")
+                or "vim"
+            )
+            return subprocess.call([editor, str(config_path)])
+        return dispatch(args)
 
 from _version import __version__
 
 INSTALL_SCRIPT = resolve_install_script_path(__file__)
+SHELL_CD_ENV = "O_SHELL_CD_FILE"
 HELP_TEXT = """o
 
 flags:
@@ -48,6 +79,10 @@ features:
   # o -p ~/src -lf py,md | o -s ~/Downloads -se txt
   o -p ~/src -lf py,md
   o -s ~/Downloads -se txt
+
+  enable n-to-cd shell handoff for the selected directory
+  # add the o() shell wrapper from README to ~/.bashrc or ~/.bashrc.d/70-integrations.sh, reload shell, then press n on a directory
+  source ~/.bashrc
 """
 
 REVEAL_ENV = "O_REVEAL_LAUNCHED"
@@ -434,9 +469,15 @@ def _dispatch(args: list[str]) -> int:
         reveal_path=reveal_path,
     )
     orchestrator.run()
+    navigator = orchestrator.navigator
+
+    if navigator and getattr(navigator, "exit_reason", "") == "shell_cd":
+        selection = getattr(navigator, "selection_result", []) or []
+        if selection and _write_shell_cd_request(selection[0]):
+            return 0
+        return 1
 
     if picker_options is not None:
-        navigator = orchestrator.navigator
         selection = getattr(navigator, "selection_result", []) if navigator else []
         if selection:
             payload = "\n".join(selection) + "\n"
@@ -460,6 +501,19 @@ APP_SPEC = AppSpec(
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     return run_app(APP_SPEC, args, _dispatch)
+
+
+def _write_shell_cd_request(path: str) -> bool:
+    handoff_path = os.environ.get(SHELL_CD_ENV, "").strip()
+    if not handoff_path:
+        return False
+
+    try:
+        Path(handoff_path).write_text(os.path.realpath(path) + "\n", encoding="utf-8")
+    except OSError as exc:
+        print(f"Failed to write shell cd handoff: {exc}", file=sys.stderr)
+        return False
+    return True
 
 
 def _write_picker_cache(selection: list[str]) -> None:

@@ -692,6 +692,25 @@ class InputHandler:
 
         self.nav.need_redraw = True
 
+    def _request_shell_cd(self, target_path: Optional[str]) -> bool:
+        if not target_path:
+            self.nav.status_message = "Directory context unavailable for n"
+            self._flash()
+            self.nav.need_redraw = True
+            return False
+
+        request_fn = getattr(self.nav, "request_shell_cd", None)
+        if callable(request_fn) and request_fn(target_path):
+            return True
+
+        self.nav.status_message = (
+            "Shell cd hook missing. Add the o() wrapper from README to ~/.bashrc "
+            "or ~/.bashrc.d/70-integrations.sh"
+        )
+        self._flash()
+        self.nav.need_redraw = True
+        return False
+
     def _handle_help_scroll(self, key, stdscr):
         lines = len(self.nav.cheatsheet.strip().split("\n"))
         max_y = stdscr.getmaxyx()[0] if stdscr else 0
@@ -1203,6 +1222,12 @@ class InputHandler:
         if key == ord("?"):
             self.nav.show_help = True
             self.nav.help_scroll = 0
+            return False
+
+        if key == ord("n"):
+            self.nav.exit_visual_mode()
+            if self._request_shell_cd(target_dir):
+                return True
             return False
 
         if key == ord("q") or key == 17:  # Ctrl+Q

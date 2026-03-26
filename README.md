@@ -55,6 +55,15 @@ Once installed, the binary itself also supports:
 - `o -v` to print the installed version
 - `o -u` to reinstall via the latest installer script if a newer release exists
 
+Optional shell integration for `n`:
+
+- If you want `n` to exit `o` and land your current shell in the selected
+  directory, add the shell wrapper from the "Shell cd integration" section
+  below.
+- In this workspace, the right local placement is
+  `~/.bashrc.d/70-integrations.sh`; in a more typical setup, `~/.bashrc` is
+  fine.
+
 You can also download the archive directly from the releases page and run
 `install.sh --binary` if you prefer.
 
@@ -184,6 +193,41 @@ Selection delivery:
 
 ## Shortcuts and commands
 
+### Shell cd integration
+
+If you want `n` to change the directory of the shell that launched `o`, add a
+shell wrapper. A child TUI process cannot directly mutate its parent shell's
+working directory, so this wrapper is the handoff layer.
+
+Add this to `~/.bashrc` or, in this workspace, `~/.bashrc.d/70-integrations.sh`:
+
+```bash
+o() {
+  local o_cd_file rc dest
+  o_cd_file="$(mktemp "${TMPDIR:-/tmp}/o-cd.XXXXXX")" || return 1
+  O_SHELL_CD_FILE="$o_cd_file" command o "$@"
+  rc=$?
+  if [ "$rc" -eq 0 ] && [ -s "$o_cd_file" ]; then
+    dest="$(cat "$o_cd_file")"
+    if [ -n "$dest" ] && [ -d "$dest" ]; then
+      cd "$dest"
+    fi
+  fi
+  rm -f "$o_cd_file"
+  return "$rc"
+}
+```
+
+Reload your shell after adding it:
+
+```bash
+source ~/.bashrc
+```
+
+After that, press `n` to land in the active navigated directory context. In the
+top-level view that means the current directory. Inside an expanded subtree,
+that means the expanded directory you are currently operating within.
+
 ### Switching views
 
 - `Enter`: Toggle between Matrix (default) and list mode. (Note: use `l` to enter directories; `Enter` no longer opens files.)
@@ -200,6 +244,7 @@ Selection delivery:
 - `j` / `k`: Move down/up.
 - `h`: Parent dir.
 - `l`: Enter dir or open file.
+- `n`: Exit `o` and `cd` your shell into the active navigated directory context, not necessarily the exact row under `>`. In the top-level view this is the current directory; inside an expanded subtree it is that expanded directory.
 - `Ctrl+J` / `Ctrl+K`: Jump down/up quickly.
 - `,xr`: Toggle inline expansion/collapse for the selection.
 - `,xc`: Collapse all inline expansions while staying in the current directory.
