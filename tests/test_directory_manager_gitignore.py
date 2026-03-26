@@ -99,3 +99,24 @@ def test_nested_gitignore_prevails_over_parent_oinclude(tmp_path):
 
     build_manager = DirectoryManager(str(build))
     assert [name for name, _is_dir in build_manager.get_items()] == ["keep.txt"]
+
+
+@pytest.mark.skipif(
+    not shutil.which("git"), reason="git is required for gitignore integration tests"
+)
+def test_nested_gitignore_can_hide_directory_from_parent_oinclude(tmp_path):
+    repo = tmp_path
+    app = repo / "Apps" / "gvim"
+    pycache_dir = app / "__pycache__"
+    pycache_dir.mkdir(parents=True)
+
+    _git(repo, "init")
+    (repo / ".gitignore").write_text("/Apps/\n", encoding="utf-8")
+    (repo / ".oinclude").write_text("Apps/\n", encoding="utf-8")
+    (app / ".gitignore").write_text("**/__pycache__/*\n", encoding="utf-8")
+    (pycache_dir / "main.cpython-314.pyc").write_text("ignored\n", encoding="utf-8")
+    (app / "main.py").write_text("print('ok')\n", encoding="utf-8")
+
+    manager = DirectoryManager(str(app))
+
+    assert [name for name, _is_dir in manager.get_items()] == ["main.py"]

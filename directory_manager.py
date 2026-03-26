@@ -301,10 +301,23 @@ class DirectoryManager:
                 rel_path == base or rel_path.startswith(base + "/")
             )
 
+        if is_dir and normalized.endswith("/*"):
+            base = normalized[:-2]
+            if self._matches_gitignore_pathspec(base, rel_path):
+                return True
+
         if "/" in normalized:
-            return fnmatch.fnmatch(rel_path, normalized)
+            return self._matches_gitignore_pathspec(normalized, rel_path)
 
         return fnmatch.fnmatch(item_name, normalized)
+
+    def _matches_gitignore_pathspec(self, pattern: str, rel_path: str) -> bool:
+        if fnmatch.fnmatch(rel_path, pattern):
+            return True
+        if pattern.startswith("**/"):
+            suffix = pattern[3:]
+            return rel_path == suffix or rel_path.endswith("/" + suffix)
+        return False
 
     def _get_git_repo_root(self, target_path: str) -> Optional[str]:
         cached = self._git_repo_cache.get(target_path)
